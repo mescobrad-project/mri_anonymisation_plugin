@@ -1,9 +1,9 @@
 {
-    "id":"generic-plugin",
-    "name": "Generic Plugin",
-    "description": "this is a generic plugin to be used within MES-CoBraD edge module",
+    "id":"mri_anonymisation_plugin",
+    "name": "mri_anonymisation_plugin",
+    "description": "MES-CoBraD edge module plugin used for anonymization and defacing brain MRIs",
     "type": "utils",
     "version": "v0.0.1",
-    "url": "https://github.com/trowdan/generic-plugin",
+    "url": "https://github.com/mescobrad-project/mri_anonymisation_plugin",
     "entry-point": "entrypoint.py"
 }
