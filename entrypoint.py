@@ -294,6 +294,8 @@ class GenericPlugin(EmptyPlugin):
         from botocore.client import Config
         import os
         import shutil
+        from zipfile import ZipFile, ZIP_STORED
+
         s3 = boto3.resource('s3',
                             endpoint_url= self.__OBJ_STORAGE_URL__,
                             aws_access_key_id= self.__OBJ_STORAGE_ACCESS_ID__,
@@ -301,16 +303,28 @@ class GenericPlugin(EmptyPlugin):
                             config=Config(signature_version='s3v4'),
                             region_name=self.__OBJ_STORAGE_REGION__)
 
-        for root, dirs, files in os.walk(path_to_anonymized_files):
-            obj_name = os.path.basename(os.path.split(path_to_anonymized_files)[0])
-            for file in files:
-                if file.endswith(".nii"):
-                    continue
-                file_to_upload = os.path.join(root, file)
-                s3.Bucket(self.__OBJ_STORAGE_BUCKET__).upload_file(file_to_upload, "mri_anonymized_data/"+obj_name+"/"+file)
+        obj_name = os.path.basename(os.path.split(path_to_anonymized_files)[0])
+        zip_name = os.path.split(path_to_anonymized_files)[0] + "/" + obj_name + "_final.zip"
 
+        # Create zip file with defaced and anonymized data
+        with ZipFile(zip_name, 'w', ZIP_STORED) as zipObj:
+            # Iterate over all the files in directory
+            for root, dirs, files in os.walk(path_to_anonymized_files):
+                for file in files:
+                    if file.endswith(".nii"):
+                        continue
+
+                    # create complete filepath of file in directory
+                    file_path = os.path.join(root, file)
+
+                    # Add file to zip
+                    zipObj.write(file_path, os.path.basename(file_path), compress_type=ZIP_STORED)
+
+        # Upload output zip file with defaced and anonymized data
+        s3.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_file(zip_name, "mri_anonymized_data/"+ obj_name + ".zip")
+
+        # Remove data
         shutil.rmtree(os.path.split(path_to_anonymized_files)[0])
-
 
     def action(self, input_meta: PluginExchangeMetadata = None) -> PluginActionResponse:
         """Run defacing algorithm.
