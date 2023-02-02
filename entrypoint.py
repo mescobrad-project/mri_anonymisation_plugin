@@ -231,32 +231,33 @@ class GenericPlugin(EmptyPlugin):
         import shutil
 
         s3_local = boto3.resource('s3',
-                                  endpoint_url= self.__OBJ_STORAGE_URL_LOCAL__,
-                                  aws_access_key_id= self.__OBJ_STORAGE_ACCESS_ID_LOCAL__,
-                                  aws_secret_access_key= self.__OBJ_STORAGE_ACCESS_SECRET_LOCAL__,
+                                  endpoint_url=self.__OBJ_STORAGE_URL_LOCAL__,
+                                  aws_access_key_id=self.__OBJ_STORAGE_ACCESS_ID_LOCAL__,
+                                  aws_secret_access_key=self.__OBJ_STORAGE_ACCESS_SECRET_LOCAL__,
                                   config=Config(signature_version='s3v4'),
                                   region_name=self.__OBJ_STORAGE_REGION__)
 
-        s3 = boto3.client("s3",
-                          endpoint_url= self.__OBJ_STORAGE_URL__,
-                          aws_access_key_id= self.__OBJ_STORAGE_ACCESS_ID__,
-                          aws_secret_access_key= self.__OBJ_STORAGE_ACCESS_SECRET__,
-                          config=Config(signature_version='s3v4'),
-                          region_name=self.__OBJ_STORAGE_REGION__)
 
-        bucket_local = s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__)
+        s3 = boto3.resource("s3",
+                            endpoint_url=self.__OBJ_STORAGE_URL__,
+                            aws_access_key_id=self.__OBJ_STORAGE_ACCESS_ID__,
+                            aws_secret_access_key=self.__OBJ_STORAGE_ACCESS_SECRET__,
+                            config=Config(signature_version='s3v4'),
+                            region_name=self.__OBJ_STORAGE_REGION__)
+
+
         # Existing non annonymized data in local MinIO bucket
+        bucket_local = s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__)
         obj_personal_data = bucket_local.objects.filter(Prefix="mri_data/", Delimiter="/")
 
         # Existing anonymized data in data lake
-        obj_anonymous_data = s3.list_objects(Bucket=self.__OBJ_STORAGE_BUCKET__, Prefix="mri_anonymized_data/", Delimiter="/")
-        keys_anonymous_data = []
-        if obj_anonymous_data.get("CommonPrefixes") is not None:
-            for obj in obj_anonymous_data.get('CommonPrefixes'):
-                keys_anonymous_data.append((obj.get("Prefix").split("/"))[1])
+        bucket = s3.Bucket(self.__OBJ_STORAGE_BUCKET__)
+        obj_anonymous_data = bucket.objects.filter(Prefix="mri_anonymized_data/", Delimiter="/")
+
+        keys_anonymous_data = [os.path.basename(obj.key) for obj in obj_anonymous_data]
 
         # Files which are not yet anonymized
-        files_to_anonymize = [obj.key for obj in obj_personal_data if os.path.basename(obj.key).split('.')[0] not in keys_anonymous_data]
+        files_to_anonymize = [obj.key for obj in obj_personal_data if os.path.basename(obj.key) not in keys_anonymous_data]
 
         # Remove data directories if exists (Before download it is not expected to have data for processing inside this directory)
         for dir in os.listdir(deface_path):
