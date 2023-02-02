@@ -321,7 +321,7 @@ class GenericPlugin(EmptyPlugin):
                     zipObj.write(file_path, os.path.basename(file_path), compress_type=ZIP_STORED)
 
         # Upload output zip file with defaced and anonymized data
-        s3.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_file(zip_name, "mri_anonymized_data/"+ obj_name + ".zip")
+        s3.Bucket(self.__OBJ_STORAGE_BUCKET__).upload_file(zip_name, "mri_anonymized_data/"+ obj_name + ".zip")
 
         # Remove data
         shutil.rmtree(os.path.split(path_to_anonymized_files)[0])
