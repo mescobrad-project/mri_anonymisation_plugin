@@ -327,6 +327,8 @@ class GenericPlugin(EmptyPlugin):
         # Remove data
         shutil.rmtree(os.path.split(path_to_anonymized_files)[0])
 
+        print('======= File is uploaded. =======')
+
     def action(self, input_meta: PluginExchangeMetadata = None) -> PluginActionResponse:
         """Run defacing algorithm.
         Remove all personal metadata.
