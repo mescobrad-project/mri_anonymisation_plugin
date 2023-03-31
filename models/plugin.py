@@ -25,7 +25,7 @@ class PluginActionResponse():
 
 @dataclass
 class PluginExchangeMetadata():
-    file_name: str = None
+    file_name: List[str] = None
     file_content_type: str = None
     file_size: int = None
     created_on: str = None
@@ -104,6 +104,11 @@ class EmptyPlugin():
         if output.file_content_type is not None and output.file_content is not None and output.file_name is not None:
             # Store the action output
             outputFileMetadata = self.__store__(output)
+        elif output.file_content_type is None and output.file_content is None and output.file_name is not None:
+            outputFileMetadata = PluginExchangeMetadata(file_name=output.file_name,
+                                                        file_content_type=None,
+                                                        file_size=None,
+                                                        created_on=None)
         else:
             # Create an empty exchange metadata
             outputFileMetadata = PluginExchangeMetadata()
