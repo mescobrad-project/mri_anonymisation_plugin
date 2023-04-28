@@ -273,6 +273,7 @@ class GenericPlugin(EmptyPlugin):
         import os
         import shutil
         from zipfile import ZipFile, ZIP_STORED
+        import time
 
         s3_local = boto3.resource('s3',
                                   endpoint_url=self.__OBJ_STORAGE_URL_LOCAL__,
@@ -304,7 +305,9 @@ class GenericPlugin(EmptyPlugin):
                     zipObj.write(file_path, name_in_zipped_file, compress_type=ZIP_STORED)
 
         # Upload output zip file with defaced and anonymized data
-        name_of_file_minio = "mri_anonymized_data/"+ obj_name + ".zip"
+        ts = round(time.time()*1000)
+        folder_name = "MRIs"
+        name_of_file_minio = f"{folder_name}/{obj_name}_{ts}.zip"
         s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_file(zip_name, name_of_file_minio)
 
         # Remove data
