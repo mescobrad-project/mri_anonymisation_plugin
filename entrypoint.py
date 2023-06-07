@@ -151,9 +151,18 @@ class GenericPlugin(EmptyPlugin):
 
             # Delete original file in local storage
             s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).objects.filter(Prefix=file_name).delete()
-            path_to_unzip = deface_path
 
             with zipfile.ZipFile(path_zip_file, 'r') as zip_ref:
+                # Get the list of all items in the ZIP archive
+                zip_contents = zip_ref.namelist()
+
+                # Check if any item in the root directory is a file
+                contains_files = any('/' not in item for item in zip_contents)
+                if contains_files:
+                    path_to_unzip=deface_path + os.path.basename(file_name).split(".")[0]
+                else:
+                    path_to_unzip=deface_path
+
                 zip_ref.extractall(path_to_unzip)
 
             # After extraction delete downloaded zip file
