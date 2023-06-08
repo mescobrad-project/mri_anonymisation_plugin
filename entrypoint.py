@@ -110,116 +110,6 @@ class GenericPlugin(EmptyPlugin):
             print(' Wrong defacing method. It has to be ')
             sys.exit()
 
-
-        # - Convert Nifti to multiple DICOM files
-        print(" Converting deFace Nifti into series of DICOM with same metadata")
-        # Load one dicom file as reference
-        refdcm = pydicom.dcmread(idcm)
-
-        # Get image orientation encoded in dicom
-        #(i.e which direction was used to aquire the multiple 2D slices)
-        imgorient = refdcm.ImageOrientationPatient
-        plane = np.round(imgorient)
-
-        if (plane[0] == 1.)  and (plane[5] == -1.):
-            slicedir = 'Coronal'
-        elif (plane[1] == 1.)  and (plane[5] == -1.):
-            slicedir = 'Sagittal'
-        elif (plane[0] == 1.)  and (plane[4] == 1.):
-            slicedir = 'Axial'
-        else:
-            print(" Invalid Image Orientation. We can not infer slice encoding direction")
-            print(" Contact IT team")
-            sys.exit(1)
-
-        # Load Nifti image
-        img = nib.load(os.path.join(outdir, 'tmpdeface', 'defaced-nifti.nii'))
-
-        # Get all dicom files (and sort by name)
-        dicomfiles = []
-        for kk in os.listdir(dcmfolder):
-            # Avoid non-dicom files within folder
-            try:
-                idcm = os.path.join(dcmfolder,kk)
-                dcm = pydicom.dcmread(idcm)
-                dicomfiles.append(idcm)
-            except:
-                continue
-
-        # Store Nifti Slices from defaced file into a dicom file
-        if slicedir == 'Coronal':
-            # Reorient Nifti to have match with DICOM
-            inorient = nib.io_orientation(img.affine)
-            wantorient = nib.orientations.axcodes2ornt("LIP")
-            transf_orient = nib.orientations.ornt_transform(inorient, wantorient)
-            newimg = img.as_reoriented(transf_orient)
-            nifti = newimg.get_fdata()
-
-            # Loop over all 2D slices in the j-plane
-            for idx,cdicom in enumerate(sorted(dicomfiles)):
-                newdcm = pydicom.dcmread(cdicom)
-
-                # Int to bytes conversion
-                pixel_array = nifti[idx,:,:]
-                pixel_array = pixel_array.astype(np.uint16)
-                pixel_bytes = pixel_array.tobytes()
-
-                # Store data into dicom file
-                newdcm.PixelData = pixel_bytes
-
-                # Write dicom file
-                outf = os.path.join(outdir,'DCM-annon-'+str(idx).zfill(4)+'.dcm')
-                newdcm.save_as(outf)
-
-        elif slicedir == 'Sagittal':
-            # Reorient Nifti to have match with DICOM
-            inorient = nib.io_orientation(img.affine)
-            wantorient = nib.orientations.axcodes2ornt("LIP")
-            transf_orient = nib.orientations.ornt_transform(inorient, wantorient)
-            newimg = img.as_reoriented(transf_orient)
-            nifti = newimg.get_fdata()
-
-            # Loop over all 2D slices in the i-plane
-            for idx,cdicom in enumerate(sorted(dicomfiles)):
-                newdcm = pydicom.dcmread(cdicom)
-
-                # Int to bytes conversion
-                pixel_array = nifti[idx,:,:]
-                pixel_array = pixel_array.astype(np.uint16)
-                pixel_bytes = pixel_array.tobytes()
-
-                # Store data into dicom file
-                newdcm.PixelData = pixel_bytes
-
-                # Write dicom file
-                outf = os.path.join(outdir,'DCM-annon-'+str(idx).zfill(4)+'.dcm')
-                newdcm.save_as(outf)
-
-        else:
-            # Reorient Nifti to have match with DICOM
-            inorient = nib.io_orientation(img.affine)
-            wantorient = nib.orientations.axcodes2ornt("PIL")
-            transf_orient = nib.orientations.ornt_transform(inorient, wantorient)
-            newimg = img.as_reoriented(transf_orient)
-            nifti = newimg.get_fdata()
-
-            # Loop over all 2D slices in the z-plane
-            for idx,cdicom in enumerate(sorted(dicomfiles)):
-                newdcm = pydicom.dcmread(cdicom)
-
-                # Int to bytes conversion
-                pixel_array = nifti[:,idx,:]
-                pixel_array = pixel_array.astype(np.uint16)
-                pixel_bytes = pixel_array.tobytes()
-
-                # Store data into dicom file
-                newdcm.PixelData = pixel_bytes
-
-                # Write dicom file
-                outf = os.path.join(outdir,'DCM-annon-'+str(idx).zfill(4)+'.dcm')
-                newdcm.save_as(outf)
-
-
         print('======= Done defacing MRI data. =======')
 
 
@@ -256,12 +146,23 @@ class GenericPlugin(EmptyPlugin):
         # Download data which need to be defaced and anonymized
         for file_name in files_to_anonymize:
             path_zip_file = deface_path+os.path.basename(file_name)
+
             s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).download_file(file_name, path_zip_file)
+
             # Delete original file in local storage
             s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).objects.filter(Prefix=file_name).delete()
-            path_to_unzip = deface_path
 
             with zipfile.ZipFile(path_zip_file, 'r') as zip_ref:
+                # Get the list of all items in the ZIP archive
+                zip_contents = zip_ref.namelist()
+
+                # Check if any item in the root directory is a file
+                contains_files = any('/' not in item for item in zip_contents)
+                if contains_files:
+                    path_to_unzip=deface_path + os.path.basename(file_name).split(".")[0]
+                else:
+                    path_to_unzip=deface_path
+
                 zip_ref.extractall(path_to_unzip)
 
             # After extraction delete downloaded zip file
@@ -291,13 +192,10 @@ class GenericPlugin(EmptyPlugin):
             # Iterate over all the files in directory
             for root, dirs, files in os.walk(path_to_anonymized_files):
                 for file in files:
-                    if file.endswith(".nii"):
-                        continue
                     # create complete filepath of file in directory
                     file_path = os.path.join(root, file)
                     basename_zip = os.path.basename(path_to_anonymized_files)
                     second_part_of_zip_name = root.split(basename_zip)[1]
-
                     name_in_zipped_file = basename_zip + os.path.split(second_part_of_zip_name)[0]
                     name_in_zipped_file = os.path.join(name_in_zipped_file, file)
 
@@ -312,6 +210,7 @@ class GenericPlugin(EmptyPlugin):
 
         # Remove data
         shutil.rmtree(os.path.split(path_to_anonymized_files)[0])
+        os.remove("defaced-nifti.log")
 
         print('======= File is uploaded to the local storage. =======')
 
@@ -343,11 +242,11 @@ class GenericPlugin(EmptyPlugin):
                 current_basename = root.split(basename)[1]
                 outdir_path = outdir + current_basename
                 try:
+                    # Remove all personal information
+                    self.annon_mri(path_to_defaced_files=os.path.join(root))
+
                     # Perform defacing
                     self.deface_mri("freesurfer", os.path.join(root), outdir_path)
-
-                    # Remove all personal information
-                    self.annon_mri(path_to_defaced_files=os.path.join(outdir_path, "defaced"))
 
                 except: # if some error occurs during deidentification remove output of current data and just continue with other datasets
                     shutil.rmtree(os.path.join(outdir_path, "defaced"))
@@ -370,11 +269,14 @@ class GenericPlugin(EmptyPlugin):
 
         name_of_anonymized_files = []
         data_dirs = os.listdir(path_to_data)
+
         for dir in data_dirs:
             current_path = os.path.join(path_to_data, dir)
+
             if os.path.isdir(current_path):
                 path_to_copied_structure = os.path.join(path_to_data, "deidentified", dir)
                 self.reproduce_directory_tree(current_path, path_to_copied_structure)
+
                 # Perform defacing and anonymisation of the DICOM files
                 self.deidentify_files(current_path, path_to_copied_structure)
 
