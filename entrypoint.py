@@ -1,4 +1,5 @@
-from mescobrad_edge.plugins.mri_anonymisation_plugin.models.plugin import EmptyPlugin, PluginActionResponse, PluginExchangeMetadata
+from mescobrad_edge.plugins.mri_anonymisation_plugin.models.plugin import EmptyPlugin,\
+      PluginActionResponse, PluginExchangeMetadata
 
 class GenericPlugin(EmptyPlugin):
     def annon_mri(self, path_to_defaced_files: str) -> None:
@@ -26,11 +27,11 @@ class GenericPlugin(EmptyPlugin):
                     if 'PatientBirthDate' in dcmdata:
                         dcmdata.PatientBirthDate = None
                     if 'PatientID' in dcmdata:
-                        dcmdata.PatientID = 'None'
+                        dcmdata.PatientID = None
                     if 'PatientName' in dcmdata:
-                        dcmdata.PatientName = 'None'
+                        dcmdata.PatientName = None
                     if 'PatientSex' in dcmdata:
-                        dcmdata.PatientSex = 'None'
+                        dcmdata.PatientSex = None
                     if 'PatientWeight' in dcmdata:
                         dcmdata.PatientWeight = None
 
@@ -72,7 +73,7 @@ class GenericPlugin(EmptyPlugin):
         import numpy as np
 
         dcmfolder = path_to_files
-        outdir = outdir_path + "/defaced"
+        outdir = os.path.join(outdir_path, "defaced")
 
         # - Create outfolder
         os.makedirs(os.path.join(outdir_path,'defaced/tmpdeface'), exist_ok = True)
@@ -89,29 +90,69 @@ class GenericPlugin(EmptyPlugin):
                 continue
 
         print(".  Using dicom: "+idcm)
-        cmd = 'dcm2niix '+str(idcm)
-        self.run_cmd(cmd,"Error converting dicom to nifti file")
+
+        try: # convert original DICOM  file into NIfTI file
+            cmd = 'dcm2niix ' + str(idcm)
+            self.run_cmd(cmd, "Error converting dicom to nifti file")
+
+        except: # in case of specific DICOM it needs to be first converted into new DICOM
+            # file with gdcmconv tool and then continue with conversion into NIfTI file
+
+            out_folder = os.path.join(dcmfolder, 'gdcm_convert')
+            for fn in os.listdir(dcmfolder):
+                if not os.path.exists(out_folder):
+                    os.makedirs(out_folder)
+                idcm = os.path.join(dcmfolder, fn)
+                odcm = os.path.join(out_folder, fn + "_gdcm")
+
+                # convert DICOM to DICOM file
+                cmd_gdcmconv = f"gdcmconv --jpeg {idcm} {odcm}"
+                self.run_cmd(cmd_gdcmconv, "Error converting dicom to dicom file")
+
+            # converted DICOMs convert to NIfTI
+            cmd_dcm2niix = f'dcm2niix -o {dcmfolder} {odcm}'
+            self.run_cmd(cmd_dcm2niix, "Error converting gdcm dicom to nifti file")
+
+
 
         t1w = [xx for xx in os.listdir(dcmfolder) if xx.endswith(".nii")]
         t1w = os.path.join(dcmfolder,t1w[0])
 
         # - Deface using Freesurfer
         if method == 'freesurfer':
-            fshome = "mescobrad_edge/plugins/mri_anonymisation_plugin/deface_files"
+            fshome = "mescobrad_edge/plugins/mri_anonymisation_plugin/mideface/freesurfer"
+            subjects_dir = "mescobrad_edge/plugins/mri_anonymisation_plugin/deface_files/"
+            mideface_path = "mescobrad_edge/plugins/mri_anonymisation_plugin/mideface/freesurfer/bin/mideface"
+
+            outfile_mgz = os.path.join(path_to_files, 'example.mgz')
+            outfile_defaced_mgz = os.path.join(outdir, 'example_defaced.mgz')
+            outfile_defaced_nifti = os.path.join(outdir, 'tmpdeface', 'defaced-nifti.nii')
+            qa = os.path.join(outdir, 'qa')
+
             print("Defacing...")
-            outfile = os.path.join(outdir,'tmpdeface', 'defaced-nifti.nii')
-            cmd = os.path.join(fshome, "mri_deface ")+t1w+" \
-                                "+os.path.join(fshome,'talairach_mixed_with_skull.gca')+" \
-                                "+os.path.join(fshome,'face.gca')+"\
-                                "+outfile
-            self.run_cmd(cmd,"Error DeFaceing T1w image")
+
+            # Run the mideface algorithm
+            # a) Set Freesurfer path
+            # b) Run setup script
+            # c) Set path to the data directory
+            # d) Convert nifti to mgz format required for mideface
+            # e) Run mideface algorithm
+            # f) Convert output mgz to nifti
+
+            cmd = f"export FREESURFER_HOME={fshome}" \
+                + " && source $FREESURFER_HOME/SetUpFreeSurfer.sh" \
+                + f" && export SUBJECTS_DIR={subjects_dir}" \
+                + f" && mri_convert {t1w} {outfile_mgz}" \
+                + f" && {mideface_path} --i {outfile_mgz} --o {outfile_defaced_mgz} --odir {qa}" \
+                + f" && mri_convert {outfile_defaced_mgz} {outfile_defaced_nifti}"
+
+            self.run_cmd(cmd,"Error DeFaceing image")
+
+            print('======= Done defacing MRI data. =======')
 
         else:
             print(' Wrong defacing method. It has to be ')
             sys.exit()
-
-        print('======= Done defacing MRI data. =======')
-
 
     def download_file(self, deface_path: str) -> None:
         import boto3
@@ -135,7 +176,8 @@ class GenericPlugin(EmptyPlugin):
         files_to_anonymize = [obj.key for obj in obj_personal_data]
 
         # Remove data directories and zip files if exists
-        # Before download it is not expected to have data for processing inside this directory
+        # Before download it is not expected to have data for processing inside this
+        # directory
         for item in os.listdir(deface_path):
             current_item = os.path.join(deface_path, item)
             if os.path.isdir(current_item):
@@ -147,10 +189,12 @@ class GenericPlugin(EmptyPlugin):
         for file_name in files_to_anonymize:
             path_zip_file = deface_path+os.path.basename(file_name)
 
-            s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).download_file(file_name, path_zip_file)
+            s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__)\
+                .download_file(file_name, path_zip_file)
 
             # Delete original file in local storage
-            s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).objects.filter(Prefix=file_name).delete()
+            s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).\
+                objects.filter(Prefix=file_name).delete()
 
             with zipfile.ZipFile(path_zip_file, 'r') as zip_ref:
                 # Get the list of all items in the ZIP archive
@@ -185,32 +229,37 @@ class GenericPlugin(EmptyPlugin):
 
 
         obj_name = os.path.split(path_to_anonymized_files)[1]
-        zip_name = os.path.split(path_to_anonymized_files)[0] + "/" + obj_name + "_final.zip"
+        zip_name = os.path.split(path_to_anonymized_files)[0] + "/" + obj_name + \
+            "_final.zip"
 
         # Create zip file with defaced and anonymized data
         with ZipFile(zip_name, 'w', ZIP_STORED) as zipObj:
             # Iterate over all the files in directory
             for root, dirs, files in os.walk(path_to_anonymized_files):
                 for file in files:
-                    # create complete filepath of file in directory
-                    file_path = os.path.join(root, file)
-                    basename_zip = os.path.basename(path_to_anonymized_files)
-                    second_part_of_zip_name = root.split(basename_zip)[1]
-                    name_in_zipped_file = basename_zip + os.path.split(second_part_of_zip_name)[0]
-                    name_in_zipped_file = os.path.join(name_in_zipped_file, file)
+                    if file.endswith('.nii'):
+                        # create complete filepath of file in directory
+                        file_path = os.path.join(root, file)
+                        basename_zip = os.path.basename(path_to_anonymized_files)
+                        second_part_of_zip_name = root.split(basename_zip)[1]
+                        name_in_zipped_file = basename_zip + \
+                            os.path.split(second_part_of_zip_name)[0]
+                        name_in_zipped_file = os.path.join(name_in_zipped_file, file)
 
-                    # Add file to zip
-                    zipObj.write(file_path, name_in_zipped_file, compress_type=ZIP_STORED)
+                        # Add file to zip
+                        zipObj.write(file_path, name_in_zipped_file, compress_type=ZIP_STORED)
+                    else:
+                        continue
 
         # Upload output zip file with defaced and anonymized data
         ts = round(time.time()*1000)
         folder_name = "MRIs"
         name_of_file_minio = f"{folder_name}/{obj_name}_{ts}.zip"
-        s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_file(zip_name, name_of_file_minio)
+        s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_file(zip_name,
+                                                                       name_of_file_minio)
 
         # Remove data
         shutil.rmtree(os.path.split(path_to_anonymized_files)[0])
-        os.remove("defaced-nifti.log")
 
         print('======= File is uploaded to the local storage. =======')
 
@@ -248,11 +297,14 @@ class GenericPlugin(EmptyPlugin):
                     # Perform defacing
                     self.deface_mri("freesurfer", os.path.join(root), outdir_path)
 
-                except: # if some error occurs during deidentification remove output of current data and just continue with other datasets
+                except: # if some error occurs during deidentification remove output of
+                    # current data and just continue with other datasets
                     shutil.rmtree(os.path.join(outdir_path, "defaced"))
-                    logging.error("Impossible to deidentify files within {} folder".format(basename+current_basename))
+                    logging.error("Impossible to deidentify files within {} folder"\
+                                  .format(basename+current_basename))
                     continue
-            else: # if there are no files, just continue on another level, to find directory which have files
+            else: # if there are no files, just continue on another level,
+                # to find directory which have files
                 continue
 
     def action(self, input_meta: PluginExchangeMetadata = None) -> PluginActionResponse:
@@ -261,7 +313,8 @@ class GenericPlugin(EmptyPlugin):
         """
         import os
 
-        # Path where original and defaced data will be stored during defacing and anonymisation
+        # Path where original and defaced data will be stored during defacing and
+        # anonymisation
         path_to_data = "mescobrad_edge/plugins/mri_anonymisation_plugin/deface_files/"
 
         # Download data to process
@@ -274,7 +327,8 @@ class GenericPlugin(EmptyPlugin):
             current_path = os.path.join(path_to_data, dir)
 
             if os.path.isdir(current_path):
-                path_to_copied_structure = os.path.join(path_to_data, "deidentified", dir)
+                path_to_copied_structure = os.path.join(path_to_data, "deidentified",
+                                                        dir)
                 self.reproduce_directory_tree(current_path, path_to_copied_structure)
 
                 # Perform defacing and anonymisation of the DICOM files
