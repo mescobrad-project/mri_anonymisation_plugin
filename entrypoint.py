@@ -22,18 +22,246 @@ class GenericPlugin(EmptyPlugin):
                 cdcm = os.path.join(root, cdcm)
                 try:
                     dcmdata = pydicom.dcmread(cdcm)
-
                     # Several possible fields name. Need to check, add news
-                    if 'PatientBirthDate' in dcmdata:
-                        dcmdata.PatientBirthDate = None
-                    if 'PatientID' in dcmdata:
-                        dcmdata.PatientID = None
+                    if 'ReferencedPatientSequence' in dcmdata:
+                        dcmdata.ReferencedPatientSequence = None
+                    if 'ReferencedSOPClassUID' in dcmdata:
+                        dcmdata.ReferencedSOPClassUID = None
+                    if 'ReferencedSOPInstanceUID' in dcmdata:
+                        dcmdata.ReferencedSOPInstanceUID = None
                     if 'PatientName' in dcmdata:
                         dcmdata.PatientName = None
+                    if 'PatientID' in dcmdata:
+                        dcmdata.PatientID = None
+                    if 'IssuerOfPatientID' in dcmdata:
+                        dcmdata.IssuerOfPatientID = None
+                    if 'TypeOfPatientID' in dcmdata:
+                        dcmdata.TypeOfPatientID = None
+                    if 'IssuerOfPatientIDQualifiersSequence' in dcmdata:
+                        dcmdata.IssuerOfPatientIDQualifiersSequence = None
+                    if 'UniversalEntityID' in dcmdata:
+                        dcmdata.UniversalEntityID = None
+                    if 'UniversalEntityIDType' in dcmdata:
+                        dcmdata.UniversalEntityIDType = None
+                    if 'IdentifierTypeCode' in dcmdata:
+                        dcmdata.IdentifierTypeCode = None
+                    if 'AssigningFacilitySequence' in dcmdata:
+                        dcmdata.AssigningFacilitySequence = None
+                    if 'LocalNamespaceEntityID' in dcmdata:
+                        dcmdata.LocalNamespaceEntityID = None
+                    if 'UniversalEntityID' in dcmdata:
+                        dcmdata.UniversalEntityID = None
+                    if 'UniversalEntityIDType' in dcmdata:
+                        dcmdata.UniversalEntityIDType = None
+                    if 'AssigningJurisdictionCodeSequence' in dcmdata:
+                        dcmdata.AssigningJurisdictionCodeSequence = None
+                    if 'CodeValue' in dcmdata:
+                        dcmdata.CodeValue = None
+                    if 'CodingSchemeDesignator' in dcmdata:
+                        dcmdata.CodingSchemeDesignator = None
+                    if 'CodingSchemeVersion' in dcmdata:
+                        dcmdata.CodingSchemeVersion = None
+                    if 'CodeMeaning' in dcmdata:
+                        dcmdata.CodeMeaning = None
+                    if 'MappingResource' in dcmdata:
+                        dcmdata.MappingResource = None
+                    if 'ContextGroupVersion' in dcmdata:
+                        dcmdata.ContextGroupVersion = None
+                    if 'ContextGroupLocalVersion' in dcmdata:
+                        dcmdata.ContextGroupLocalVersion = None
+                    if 'ContextGroupExtensionFlag' in dcmdata:
+                        dcmdata.ContextGroupExtensionFlag = None
+                    if 'ContextGroupExtensionCreatorUID' in dcmdata:
+                        dcmdata.ContextGroupExtensionCreatorUID = None
+                    if 'ContextIdentifier' in dcmdata:
+                        dcmdata.ContextIdentifier = None
+                    if 'ContextUID' in dcmdata:
+                        dcmdata.ContextUID = None
+                    if 'MappingResourceUID' in dcmdata:
+                        dcmdata.MappingResourceUID = None
+                    if 'LongCodeValue' in dcmdata:
+                        dcmdata.LongCodeValue = None
+                    if 'URNCodeValue' in dcmdata:
+                        dcmdata.URNCodeValue = None
+                    if 'EquivalentCodeSequence' in dcmdata:
+                        dcmdata.EquivalentCodeSequence = None
+                    if 'MappingResourceName' in dcmdata:
+                        dcmdata.MappingResourceName = None
+                    if 'AssigningAgencyOrDepartmentCodeSequence' in dcmdata:
+                        dcmdata.AssigningAgencyOrDepartmentCodeSequence = None
+                    if 'SourcePatientGroupIdentificationSequence' in dcmdata:
+                        dcmdata.SourcePatientGroupIdentificationSequence = None
+                    if 'GroupOfPatientsIdentificationSequence' in dcmdata:
+                        dcmdata.GroupOfPatientsIdentificationSequence = None
+                    if 'SubjectRelativePositionInImage' in dcmdata:
+                        dcmdata.SubjectRelativePositionInImage = None
+                    if 'PatientPosition' in dcmdata:
+                        dcmdata.PatientPosition = None
+                    if 'PatientBirthDate' in dcmdata:
+                        dcmdata.PatientBirthDate = None
+                    if 'PatientBirthTime' in dcmdata:
+                        dcmdata.PatientBirthTime = None
+                    if 'PatientBirthDateInAlternativeCalendar' in dcmdata:
+                        dcmdata.PatientBirthDateInAlternativeCalendar = None
+                    if 'PatientDeathDateInAlternativeCalendar' in dcmdata:
+                        dcmdata.PatientDeathDateInAlternativeCalendar = None
+                    if 'PatientAlternativeCalendar' in dcmdata:
+                        dcmdata.PatientAlternativeCalendar = None
                     if 'PatientSex' in dcmdata:
                         dcmdata.PatientSex = None
+                    if 'QualityControlSubject' in dcmdata:
+                        dcmdata.QualityControlSubject = None
+                    if 'StrainDescription' in dcmdata:
+                        dcmdata.StrainDescription = None
+                    if 'StrainNomenclature' in dcmdata:
+                        dcmdata.StrainNomenclature = None
+                    if 'StrainStockSequence' in dcmdata:
+                        dcmdata.StrainStockSequence = None
+                    if 'StrainStockNumber' in dcmdata:
+                        dcmdata.StrainStockNumber = None
+                    if 'StrainSourceRegistryCodeSequence' in dcmdata:
+                        dcmdata = None
+                    if 'StrainSource' in dcmdata:
+                        dcmdata.StrainSource = None
+                    if 'StrainAdditionalInformation' in dcmdata:
+                        dcmdata.StrainAdditionalInformation = None
+                    if 'StrainCodeSequence' in dcmdata:
+                        dcmdata.StrainCodeSequence = None
+                    if 'GeneticModificationsSequence' in dcmdata:
+                        dcmdata.GeneticModificationsSequence = None
+                    if 'GeneticModificationsDescription' in dcmdata:
+                        dcmdata.GeneticModificationsDescription = None
+                    if 'GeneticModificationsNomenclature' in dcmdata:
+                        dcmdata.GeneticModificationsNomenclature = None
+                    if 'GeneticModificationsCodeSequence' in dcmdata:
+                        dcmdata.GeneticModificationsCodeSequence = None
+                    if 'OtherPatientNames' in dcmdata:
+                        dcmdata.OtherPatientNames = None
+                    if 'OtherPatientIDsSequence' in dcmdata:
+                        dcmdata.OtherPatientIDsSequence = None
+                    if 'ReferencedPatientPhotoSequence' in dcmdata:
+                        dcmdata.ReferencedPatientPhotoSequence = None
+                    if 'ReferencedFrameNumber' in dcmdata:
+                        dcmdata.ReferencedFrameNumber = None
+                    if 'HL7InstanceIdentifier' in dcmdata:
+                        dcmdata.HL7InstanceIdentifier = None
+                    if 'ReferencedSegmentNumber' in dcmdata:
+                        dcmdata.ReferencedSegmentNumber = None
+                    if 'StudyInstanceUID' in dcmdata:
+                        dcmdata.StudyInstanceUID = None
+                    if 'SeriesInstanceUID' in dcmdata:
+                        dcmdata.SeriesInstanceUID = None
+                    if 'TypeOfInstances' in dcmdata:
+                        dcmdata.TypeOfInstances = None
+                    if 'DICOMRetrievalSequence' in dcmdata:
+                        dcmdata.DICOMRetrievalSequence = None
+                    if 'RetrieveAETitle' in dcmdata:
+                        dcmdata.RetrieveAETitle = None
+                    if 'DICOMMediaRetrievalSequence' in dcmdata:
+                        dcmdata.DICOMMediaRetrievalSequence = None
+                    if 'StorageMediaFileSetID' in dcmdata:
+                        dcmdata.StorageMediaFileSetID = None
+                    if 'StorageMediaFileSetUID' in dcmdata:
+                        dcmdata.StorageMediaFileSetUID = None
+                    if 'WADORetrievalSequence' in dcmdata:
+                        dcmdata.WADORetrievalSequence = None
+                    if 'RetrieveURI' in dcmdata:
+                        dcmdata.RetrieveURI = None
+                    if 'XDSRetrievalSequence' in dcmdata:
+                        dcmdata.XDSRetrievalSequence = None
+                    if 'RepositoryUniqueID' in dcmdata:
+                        dcmdata.RepositoryUniqueID = None
+                    if 'HomeCommunityID' in dcmdata:
+                        dcmdata.HomeCommunityID = None
+                    if 'WADORSRetrievalSequence' in dcmdata:
+                        dcmdata.WADORSRetrievalSequence = None
+                    if 'RetrieveURL' in dcmdata:
+                        dcmdata.RetrieveURL = None
+                    if 'EthnicGroup' in dcmdata:
+                        dcmdata.EthnicGroup = None
+                    if 'PatientSpeciesDescription' in dcmdata:
+                        dcmdata.PatientSpeciesDescription = None
+                    if 'PatientSpeciesCodeSequence' in dcmdata:
+                        dcmdata.PatientSpeciesCodeSequence = None
+                    if 'PatientBreedDescription' in dcmdata:
+                        dcmdata.PatientBreedDescription = None
+                    if 'PatientBreedCodeSequence' in dcmdata:
+                        dcmdata.PatientBreedCodeSequence = None
+                    if 'BreedRegistrationSequence' in dcmdata:
+                        dcmdata.BreedRegistrationSequence = None
+                    if 'BreedRegistrationNumber' in dcmdata:
+                        dcmdata.BreedRegistrationNumber = None
+                    if 'BreedRegistryCodeSequence' in dcmdata:
+                        dcmdata.BreedRegistryCodeSequence = None
+                    if 'ResponsiblePerson' in dcmdata:
+                        dcmdata.ResponsiblePerson = None
+                    if 'ResponsiblePersonRole' in dcmdata:
+                        dcmdata.ResponsiblePersonRole = None
+                    if 'ResponsibleOrganization' in dcmdata:
+                        dcmdata.ResponsibleOrganization = None
+                    if 'PatientComments' in dcmdata:
+                        dcmdata.PatientComments = None
+                    if 'PatientIdentityRemoved' in dcmdata:
+                        dcmdata.PatientIdentityRemoved = None
+                    if 'DeidentificationMethod' in dcmdata:
+                        dcmdata.DeidentificationMethod = None
+                    if 'DeidentificationMethodCodeSequence' in dcmdata:
+                        dcmdata.DeidentificationMethodCodeSequence = None
+                    if 'AdmittingDiagnosesDescription' in dcmdata:
+                        dcmdata.AdmittingDiagnosesDescription = None
+                    if 'AdmittingDiagnosesCodeSequence' in dcmdata:
+                        dcmdata.AdmittingDiagnosesCodeSequence = None
+                    if 'PatientAge' in dcmdata:
+                        dcmdata.PatientAge = None
+                    if 'PatientSize' in dcmdata:
+                        dcmdata.PatientSize = None
+                    if 'PatientSizeCodeSequence' in dcmdata:
+                        dcmdata.PatientSizeCodeSequence = None
+                    if 'PatientBodyMassIndex' in dcmdata:
+                        dcmdata.PatientBodyMassIndex = None
+                    if 'MeasuredAPDimension' in dcmdata:
+                        dcmdata.MeasuredAPDimension = None
+                    if 'MeasuredLateralDimension' in dcmdata:
+                        dcmdata.MeasuredLateralDimension = None
                     if 'PatientWeight' in dcmdata:
                         dcmdata.PatientWeight = None
+                    if 'MedicalAlerts' in dcmdata:
+                        dcmdata.MedicalAlerts = None
+                    if 'Allergies' in dcmdata:
+                        dcmdata.Allergies = None
+                    if 'Occupation' in dcmdata:
+                        dcmdata.Occupation = None
+                    if 'SmokingStatus' in dcmdata:
+                        dcmdata.SmokingStatus = None
+                    if 'AdditionalPatientHistory' in dcmdata:
+                        dcmdata.AdditionalPatientHistory = None
+                    if 'PregnancyStatus' in dcmdata:
+                        dcmdata.PregnancyStatus = None
+                    if 'LastMenstrualDate' in dcmdata:
+                        dcmdata.LastMenstrualDate = None
+                    if 'PatientSexNeutered' in dcmdata:
+                        dcmdata.PatientSexNeutered = None
+                    if 'ReasonForVisit' in dcmdata:
+                        dcmdata.ReasonForVisit = None
+                    if 'ReasonForVisitCodeSequence' in dcmdata:
+                        dcmdata.ReasonForVisitCodeSequence = None
+                    if 'AdmissionID' in dcmdata:
+                        dcmdata.AdmissionID = None
+                    if 'IssuerOfAdmissionIDSequence' in dcmdata:
+                        dcmdata.IssuerOfAdmissionIDSequence = None
+                    if 'ServiceEpisodeID' in dcmdata:
+                        dcmdata.ServiceEpisodeID = None
+                    if 'ServiceEpisodeDescription' in dcmdata:
+                        dcmdata.ServiceEpisodeDescription = None
+                    if 'IssuerOfServiceEpisodeIDSequence' in dcmdata:
+                        dcmdata.IssuerOfServiceEpisodeIDSequence = None
+                    if 'PatientState' in dcmdata:
+                        dcmdata.PatientState = None
+                    if 'ReferencedImageSequence' in dcmdata:
+                        dcmdata.ReferencedImageSequence=None
+                    if 'ProcedureCodeSequence' in dcmdata:
+                        dcmdata.ProcedureCodeSequence = None
+
 
                     # Save updated annon MRI
                     outfiletmp = cdcm
