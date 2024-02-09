@@ -567,4 +567,4 @@ class GenericPlugin(EmptyPlugin):
 
                 name_of_anonymized_files.append(name_of_file)
 
-        return PluginActionResponse(None, None, name_of_anonymized_files)
+        return PluginActionResponse(None, None, name_of_anonymized_files, input_meta.workspace_id)
