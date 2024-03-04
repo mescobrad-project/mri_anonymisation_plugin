@@ -267,7 +267,6 @@ class GenericPlugin(EmptyPlugin):
                     outfiletmp = cdcm
                     os.makedirs(os.path.dirname(outfiletmp), exist_ok = True)
                     dcmdata.save_as(outfiletmp)
-
                 except:
                     continue
         print("======= Removed personal data. =======")
@@ -715,11 +714,13 @@ class GenericPlugin(EmptyPlugin):
             "_final.zip"
 
         # Create zip file with defaced and anonymized data
+        files_exists = False
         with ZipFile(zip_name, 'w', ZIP_STORED) as zipObj:
             # Iterate over all the files in directory
             for root, dirs, files in os.walk(path_to_anonymized_files):
                 for file in files:
                     if file.endswith('.nii'):
+                        files_exists = True
                         # create complete filepath of file in directory
                         file_path = os.path.join(root, file)
                         basename_zip = os.path.basename(path_to_anonymized_files)
@@ -742,11 +743,12 @@ class GenericPlugin(EmptyPlugin):
                         continue
 
         # Upload output zip file with defaced and anonymized data
-        ts = round(time.time()*1000)
-        folder_name = "MRIs"
-        name_of_file_minio = f"{folder_name}/{obj_name}_{ts}.zip"
-        s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_file(zip_name,
-                                                                       name_of_file_minio)
+        if files_exists:
+            ts = round(time.time()*1000)
+            folder_name = "MRIs"
+            name_of_file_minio = f"{folder_name}/{obj_name}_{ts}.zip"
+            s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_file(zip_name,
+                                                                           name_of_file_minio)
 
         # Update key value file with mapping between filename nad patient id,
         # this file is stored in the local MinIO instance
@@ -754,8 +756,6 @@ class GenericPlugin(EmptyPlugin):
 
         # Remove data
         shutil.rmtree(os.path.split(path_to_anonymized_files)[0])
-
-        print('======= File is uploaded to the local storage. =======')
 
         return name_of_file_minio
 
@@ -797,6 +797,10 @@ class GenericPlugin(EmptyPlugin):
                     logging.error("Impossible to deidentify files within {} folder"\
                                   .format(basename+current_basename))
                     continue
+
+                # finally:
+                    # shutil.rmtree(os.path.join(root))
+
             else: # if there are no files, just continue on another level,
                 # to find directory which have files
                 continue
@@ -848,6 +852,7 @@ class GenericPlugin(EmptyPlugin):
         Remove all personal metadata.
         """
         import os
+        import logging
 
         # Path where original and defaced data will be stored during defacing and
         # anonymisation
@@ -858,25 +863,31 @@ class GenericPlugin(EmptyPlugin):
 
         name_of_anonymized_files = []
         data_dirs = os.listdir(path_to_data)
+        try:
+            for dir in data_dirs:
+                current_path = os.path.join(path_to_data, dir)
 
-        for dir in data_dirs:
-            current_path = os.path.join(path_to_data, dir)
+                if os.path.isdir(current_path):
+                    path_to_copied_structure = os.path.join(path_to_data, "deidentified",
+                                                            dir)
+                    self.reproduce_directory_tree(current_path, path_to_copied_structure)
 
-            if os.path.isdir(current_path):
-                path_to_copied_structure = os.path.join(path_to_data, "deidentified", dir)
+                    # Perform defacing and anonymisation of the DICOM files
+                    self.deidentify_files(current_path, path_to_copied_structure)
 
-                self.reproduce_directory_tree(current_path, path_to_copied_structure)
+                    # Create personal id
+                    personal_id = self.create_personal_identifier(input_meta.data_info)
 
-                # Perform defacing and anonymisation of the DICOM files
-                self.deidentify_files(current_path, path_to_copied_structure)
+                    # Upload processed data
+                    name_of_file = self.upload_file(path_to_copied_structure, personal_id)
 
-                # Create personal id
-                personal_id = self.create_personal_identifier(input_meta.data_info)
+                    print('======= File is uploaded to the local storage. =======')
 
-                # Upload processed data
-                name_of_file = self.upload_file(path_to_copied_structure, personal_id)
+                    name_of_anonymized_files.append(name_of_file)
 
-                name_of_anonymized_files.append(name_of_file)
+        except:
+            logging.error("Impossible to deidentify files")
 
         return PluginActionResponse(None, None, name_of_anonymized_files,
                                     input_meta.data_info)
+
