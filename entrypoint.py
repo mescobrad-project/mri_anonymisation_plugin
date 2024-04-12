@@ -440,7 +440,37 @@ class GenericPlugin(EmptyPlugin):
             # After extraction delete downloaded zip file
             os.remove(path_zip_file)
 
-    def upload_file(self, path_to_anonymized_files: str) -> None:
+    def update_filename_pid_mapping(self, obj_name, personal_id, s3_local):
+        import csv
+        import io
+
+        folder = "file_pid/"
+        filename = "filename_pid.csv"
+        file_path = f"{folder}{filename}"
+
+        bucket_local = s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__)
+        obj_files = bucket_local.objects.filter(Prefix=folder, Delimiter="/")
+
+        if (len(list(obj_files))) > 0:
+            existing_object = s3_local.Object(self.__OBJ_STORAGE_BUCKET_LOCAL__, file_path)
+            existing_data = existing_object.get()["Body"].read().decode('utf-8')
+            data_to_append = [obj_name, personal_id]
+            existing_rows = list(csv.reader(io.StringIO(existing_data)))
+            existing_rows.append(data_to_append)
+
+            updated_data = io.StringIO()
+            csv.writer(updated_data).writerows(existing_rows)
+            s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_fileobj(
+                io.BytesIO(updated_data.getvalue().encode('utf-8')), file_path)
+        else:
+            key_values = ['filename', 'personal_id']
+            file_data = [key_values, [obj_name, personal_id]]
+            updated_data = io.StringIO()
+            csv.writer(updated_data).writerows(file_data)
+            s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_fileobj(
+                io.BytesIO(updated_data.getvalue().encode('utf-8')), file_path)
+
+    def upload_file(self, path_to_anonymized_files: str, personal_id: str) -> None:
         import boto3
         from botocore.client import Config
         import os
@@ -485,6 +515,10 @@ class GenericPlugin(EmptyPlugin):
         name_of_file_minio = f"{folder_name}/{obj_name}_{ts}.zip"
         s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_file(zip_name,
                                                                        name_of_file_minio)
+
+        # Update key value file with mapping between filename nad patient id,
+        # this file is stored in the local MinIO instance
+        self.update_filename_pid_mapping(name_of_file_minio, personal_id, s3_local)
 
         # Remove data
         shutil.rmtree(os.path.split(path_to_anonymized_files)[0])
@@ -535,6 +569,48 @@ class GenericPlugin(EmptyPlugin):
                 # to find directory which have files
                 continue
 
+    def generate_personal_id(self, personal_data):
+        """Based on the identity, full_name and date of birth."""
+
+        import hashlib
+
+        personal_id = "".join(str(data) for data in personal_data)
+
+        # Remove all whitespaces characters
+        personal_id = "".join(personal_id.split())
+
+        # Generate ID
+        id = hashlib.sha256(bytes(personal_id, "utf-8")).hexdigest()
+        return id
+
+    def create_personal_identifier(self, data_info):
+        import pandas as pd
+        # Generate personal id
+        if all(param is not None for param in [data_info['name'],
+                                               data_info['surname'],
+                                               data_info['date_of_birth'],
+                                               data_info['unique_id']]):
+
+            # Make unified dates, so that different formats of date doesn't change the
+            # final id
+            data_info["date_of_birth"] = pd.to_datetime(data_info["date_of_birth"],
+                                                        dayfirst=True)
+
+            data_info["date_of_birth"] = data_info["date_of_birth"].strftime("%d-%m-%Y")
+
+            # Personal id is made based on name, surname, date date of birth, and national
+            # unique id
+            personal_data = [data_info["name"], data_info["surname"],
+                             data_info["date_of_birth"], data_info["unique_id"]]
+
+            personal_id = self.generate_personal_id(personal_data)
+        else:
+            # If the data is not provided create an empty string for the personal ID
+            personal_data = []
+            personal_id = self.generate_personal_id(personal_data)
+
+        return personal_id
+
     def action(self, input_meta: PluginExchangeMetadata = None) -> PluginActionResponse:
         """Run defacing algorithm.
         Remove all personal metadata.
@@ -562,9 +638,13 @@ class GenericPlugin(EmptyPlugin):
                 # Perform defacing and anonymisation of the DICOM files
                 self.deidentify_files(current_path, path_to_copied_structure)
 
+                # Create personal id
+                personal_id = self.create_personal_identifier(input_meta.data_info)
+
                 # Upload processed data
-                name_of_file = self.upload_file(path_to_copied_structure)
+                name_of_file = self.upload_file(path_to_copied_structure, personal_id)
 
                 name_of_anonymized_files.append(name_of_file)
 
-        return PluginActionResponse(None, None, name_of_anonymized_files, input_meta.workspace_id)
+        return PluginActionResponse(None, None, name_of_anonymized_files,
+                                    input_meta.data_info)
