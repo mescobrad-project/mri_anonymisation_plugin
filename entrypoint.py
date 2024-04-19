@@ -699,6 +699,7 @@ class GenericPlugin(EmptyPlugin):
         import shutil
         from zipfile import ZipFile, ZIP_STORED
         import time
+        import logging
 
         s3_local = boto3.resource('s3',
                                   endpoint_url=self.__OBJ_STORAGE_URL_LOCAL__,
@@ -747,17 +748,22 @@ class GenericPlugin(EmptyPlugin):
             ts = round(time.time()*1000)
             folder_name = "MRIs"
             name_of_file_minio = f"{folder_name}/{obj_name}_{ts}.zip"
-            s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_file(zip_name,
-                                                                           name_of_file_minio)
+            try:
+                s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__)\
+                    .upload_file(zip_name,name_of_file_minio)
+                print('======= File is uploaded to the local storage. =======')
+            except Exception as e:
+                logging.error(e)
 
-        # Update key value file with mapping between filename nad patient id,
-        # this file is stored in the local MinIO instance
-        self.update_filename_pid_mapping(name_of_file_minio, personal_id, s3_local)
+            # Update key value file with mapping between filename and patient id,
+            # this file is stored in the local MinIO instance
+            self.update_filename_pid_mapping(name_of_file_minio, personal_id, s3_local)
 
         # Remove data
         shutil.rmtree(os.path.split(path_to_anonymized_files)[0])
 
-        return name_of_file_minio
+        name_of_file = name_of_file_minio if files_exists else None
+        return name_of_file
 
     def ignore_files(self, dir, files):
         import os
@@ -791,15 +797,15 @@ class GenericPlugin(EmptyPlugin):
                     # Perform defacing
                     self.deface_mri("freesurfer", os.path.join(root), outdir_path)
 
-                except: # if some error occurs during deidentification remove output of
-                    # current data and just continue with other datasets
+                except: # if some error occurs during deidentification
+                    # remove output of current data and just continue with other datasets
                     shutil.rmtree(os.path.join(outdir_path, "defaced"))
-                    logging.error("Impossible to deidentify files within {} folder"\
-                                  .format(basename+current_basename))
+                    logging.error("Impossible to deidentify files within " \
+                                  f"{basename+current_basename} folder")
                     continue
 
-                # finally:
-                    # shutil.rmtree(os.path.join(root))
+                finally:
+                    shutil.rmtree(os.path.join(root))
 
             else: # if there are no files, just continue on another level,
                 # to find directory which have files
@@ -853,6 +859,7 @@ class GenericPlugin(EmptyPlugin):
         """
         import os
         import logging
+        import shutil
 
         # Path where original and defaced data will be stored during defacing and
         # anonymisation
@@ -881,12 +888,11 @@ class GenericPlugin(EmptyPlugin):
                     # Upload processed data
                     name_of_file = self.upload_file(path_to_copied_structure, personal_id)
 
-                    print('======= File is uploaded to the local storage. =======')
-
                     name_of_anonymized_files.append(name_of_file)
+                    shutil.rmtree(os.path.join(current_path))
 
-        except:
-            logging.error("Impossible to deidentify files")
+        except Exception as e:
+            logging.error(e)
 
         return PluginActionResponse(None, None, name_of_anonymized_files,
                                     input_meta.data_info)
