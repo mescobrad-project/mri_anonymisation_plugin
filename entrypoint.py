@@ -594,7 +594,11 @@ class GenericPlugin(EmptyPlugin):
 
         # - Deface using Freesurfer
         if method == 'freesurfer':
-            self.run_mideface(t1w_files_to_deface, dcmfolder, outdir)
+            if t1w_files_to_deface:
+                self.run_mideface(t1w_files_to_deface, dcmfolder, outdir)
+            else:
+                print("--- T1 is not recognized within uploaded sequences. ---")
+                return
         else:
             print(' Wrong defacing method. It has to be ')
             sys.exit()
@@ -803,9 +807,6 @@ class GenericPlugin(EmptyPlugin):
                     logging.error("Impossible to deidentify files within " \
                                   f"{basename+current_basename} folder")
                     continue
-
-                finally:
-                    shutil.rmtree(os.path.join(root))
 
             else: # if there are no files, just continue on another level,
                 # to find directory which have files
