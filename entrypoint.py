@@ -267,7 +267,6 @@ class GenericPlugin(EmptyPlugin):
                     outfiletmp = cdcm
                     os.makedirs(os.path.dirname(outfiletmp), exist_ok = True)
                     dcmdata.save_as(outfiletmp)
-
                 except:
                     continue
         print("======= Removed personal data. =======")
@@ -293,20 +292,172 @@ class GenericPlugin(EmptyPlugin):
             sys.exit(1)
         self.my_print('\n')
 
-    def deface_mri(self, method: str, path_to_files: str, outdir_path: str) -> None:
+    def find_T1w(self, json_metadata):
+        """Among all NIfTI files detect ones for T1w"""
+
+        criteria_combinations = [
+            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
+             'PulseSequenceName': 'T1TFE', 'MRAcquisitionType': '3D',
+             'ScanningSequence': 'GR'},
+            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
+             'PulseSequenceName': 'TIR', 'MRAcquisitionType': '2D',
+             'ScanningSequence': 'IR'}, #not sure if necessary
+            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
+             'PulseSequenceName': 'SE', 'MRAcquisitionType': '3D',
+             'ScanningSequence': 'SE'},
+            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
+             'PulseSequenceName': '', 'MRAcquisitionType': '', 'ScanningSequence': 'SE'},
+            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
+             'PulseSequenceName': '', 'MRAcquisitionType': '2D',
+             'ScanningSequence': 'SE'},
+            {'Manufacturer': 'Siemens', 'SeriesDescription': 'T1',
+             'PulseSequenceDetails': 'tse_vfl', 'MRAcquisitionType': '3D',
+             'ScanningSequence': 'SE'},
+            {'Manufacturer': 'Siemens', 'SeriesDescription': 'mprage',
+             'PulseSequenceDetails': 'tse_vfl', 'MRAcquisitionType': '3D',
+             'ScanningSequence': 'SE'},
+            {'Manufacturer': 'Siemens', 'SeriesDescription': 'T1',
+             'MRAcquisitionType': '3D', 'ScanningSequence': 'GR'},
+            {'Manufacturer': 'Siemens', 'SeriesDescription': 'mprage',
+             'MRAcquisitionType': '3D', 'ScanningSequence': 'GR'},
+            {'Manufacturer': 'GE', 'SeriesDescription': 't1',
+             'PulseSequenceName': 'BRAVO', 'MRAcquisitionType': '3D',
+             'ScanningSequence': 'GR'}
+        ]
+
+        # exclusion strings for SeriesDescription:
+        exclusion_strings = ['GAD', 'GD'] #normally T1w is scanned with and without Gd
+
+        verdicts = []
+
+        # Iterate over each JSON file in the directory
+        for index, row in json_metadata.iterrows():
+            # Convert field values to lowercase for case-insensitive comparison
+            data_lower = {key: value.lower() if isinstance(value, str) else value \
+                          for key, value in row.items()}
+
+            # Check each criteria combination
+            verdict = 0
+            for criteria in criteria_combinations:
+                criteria_lower = {key: value.lower() if isinstance(value, str) \
+                                  else value for key, value in criteria.items()}
+                if all(criteria_value.lower() in data_lower.get(criteria_key, '').lower()
+                       for criteria_key, criteria_value in criteria_lower.items()):
+
+                    # Check if field2 contains any exclusion strings
+                    if all(exclusion.lower() \
+                           not in data_lower.get('SeriesDescription', '').lower() \
+                           for exclusion in exclusion_strings):
+                        # Exclude Processed images (e.g, MPR)
+                        if (not any('PROJECTION' in s for s in data_lower.get('ImageType'))
+                            and
+                            not any('DERIVED' in s for s in data_lower.get('ImageType'))):
+                            verdict = 1
+                            print(data_lower.get('file_name'))
+                            break
+
+            verdicts.append(verdict)
+
+        json_metadata['field_verdict'] = verdicts
+        filtered_json_metadata = json_metadata[json_metadata['field_verdict'] == 1]
+        return filtered_json_metadata
+
+    def find_flair(self, json_metadata):
+        """Among all MRI NIfTI sequences detect Flair ones"""
+
+        criteria_combinations = [
+            {'Manufacturer': 'Philips', 'SeriesDescription': 'FLAIR',
+             'PulseSequenceName': 'TIR', 'ScanningSequence': 'IR'},
+            {'Manufacturer': 'Philips', 'SeriesDescription': 'FLR',
+             'PulseSequenceName': 'TIR', 'ScanningSequence': 'IR'},
+            {'Manufacturer': 'Philips', 'SeriesDescription': 'FLAIR',
+             'ScanningSequence': 'IR'},
+            {'Manufacturer': 'Philips', 'SeriesDescription': 'FLR',
+             'ScanningSequence': 'IR'},
+            {'Manufacturer': 'Siemens', 'SeriesDescription': 'FLAIR',
+             'PulseSequenceDetails': 'tse', 'ScanningSequence': 'SE\IR'},
+            {'Manufacturer': 'Siemens', 'SeriesDescription': 'FLR',
+             'PulseSequenceDetails': 'tse', 'ScanningSequence': 'SE\IR'},
+            {'Manufacturer': 'Siemens', 'SeriesDescription': 'dark-fluid',
+             'PulseSequenceDetails': 'tse', 'ScanningSequence': 'SE'},
+            {'Manufacturer': 'GE', 'SeriesDescription': 'flair',
+             'PulseSequenceName': 'T2FLAIR', 'ScanningSequence': 'SE'}
+        ]
+
+        # exclusion strings for SeriesDescription:
+        exclusion_strings = ['HIPO', 'MIP', '1nsa']
+
+        verdicts = []
+
+        # Iterate over each JSON file in the directory
+        for index, row in json_metadata.iterrows():
+            # Convert field values to lowercase for case-insensitive comparison
+            data_lower = {key: value.lower() if isinstance(value, str) else value \
+                          for key, value in row.items()}
+
+            # Check each criteria combination
+            verdict = 0
+            for criteria in criteria_combinations:
+                criteria_lower = {key: value.lower() if isinstance(value, str) else value
+                                  for key, value in criteria.items()}
+                if all(criteria_value.lower() in data_lower.get(criteria_key, '').lower()
+                       for criteria_key, criteria_value in criteria_lower.items()):
+
+                    # Check if field2 contains any exclusion strings
+                    if all(exclusion.lower()
+                           not in data_lower.get('SeriesDescription', '').lower()
+                           for exclusion in exclusion_strings):
+
+                        # Exclude Processed images (e.g, MPR)
+                        if (not any('PROJECTION' in s for s in data_lower.get('ImageType'))
+                            or
+                            not any('DERIVED' in s for s in data_lower.get('ImageType'))):
+                            verdict = 2
+                            print(data_lower.get('file_name'))
+                            break
+
+            verdicts.append(verdict)
+
+        json_metadata['field_verdict'] = verdicts
+        filtered_json_metadata = json_metadata[json_metadata['field_verdict'] == 2]
+        return filtered_json_metadata
+
+
+    def read_json_files(self, json_files_list):
+        """Read json files to extract information needed to detect T1 or Flair sequince"""
+        import pandas as pd
+        import os
+        import json
+
+        df = pd.DataFrame()
+
+        # Read each JSON file specified in the list
+        for json_file_path in json_files_list:
+
+            # Read the JSON file and convert to DataFrame
+            with open(json_file_path, 'r') as json_file:
+                json_data = json.load(json_file)
+                json_df = pd.json_normalize(json_data)
+
+                file_path,file_name=os.path.split(json_file_path)
+
+                # Add a column with the folder path to identify the source
+                json_df['folder_path'] = file_path
+                json_df['file_name'] = file_name
+
+                # Concatenate with the main DataFrame
+                df = pd.concat([df, json_df], ignore_index=True)
+
+        df.fillna('', inplace=True)
+
+        return df
+
+    def convert_dicom_to_nifti(self, dcmfolder):
+        """Convert DICOM files into NIfTI files"""
+
         import os
         import pydicom
-        import sys
-        import nibabel as nib
-        import numpy as np
 
-        dcmfolder = path_to_files
-        outdir = os.path.join(outdir_path, "defaced")
-
-        # - Create outfolder
-        os.makedirs(os.path.join(outdir_path,'defaced/tmpdeface'), exist_ok = True)
-
-        # - Convert dicom to nifti
         print("Converting dicom to nifti...")
         for kk in os.listdir(dcmfolder):
             # Avoid non-dicom files within folder
@@ -319,7 +470,7 @@ class GenericPlugin(EmptyPlugin):
 
         print(".  Using dicom: "+idcm)
 
-        try: # convert original DICOM  file into NIfTI file
+        try: # convert original DICOM file into NIfTI file
             cmd = 'dcm2niix ' + str(idcm)
             self.run_cmd(cmd, "Error converting dicom to nifti file")
 
@@ -341,20 +492,29 @@ class GenericPlugin(EmptyPlugin):
             cmd_dcm2niix = f'dcm2niix -o {dcmfolder} {odcm}'
             self.run_cmd(cmd_dcm2niix, "Error converting gdcm dicom to nifti file")
 
+    def run_mideface(self, t1w_files_to_deface, dcmfolder, outdir):
+        """Perform defacing on the NIfTI T1 files. Mideface algorithm from Freesrufer is
+        used for defacing"""
 
+        import os
+        import shutil
 
-        t1w = [xx for xx in os.listdir(dcmfolder) if xx.endswith(".nii")]
-        t1w = os.path.join(dcmfolder,t1w[0])
+        fshome = "mescobrad_edge/plugins/mri_anonymisation_plugin/mideface/freesurfer"
+        subjects_dir = "mescobrad_edge/plugins/mri_anonymisation_plugin/deface_files/"
+        mideface_path = "mescobrad_edge/plugins/mri_anonymisation_plugin/mideface/freesurfer/bin/mideface"
 
-        # - Deface using Freesurfer
-        if method == 'freesurfer':
-            fshome = "mescobrad_edge/plugins/mri_anonymisation_plugin/mideface/freesurfer"
-            subjects_dir = "mescobrad_edge/plugins/mri_anonymisation_plugin/deface_files/"
-            mideface_path = "mescobrad_edge/plugins/mri_anonymisation_plugin/mideface/freesurfer/bin/mideface"
+        for file in t1w_files_to_deface:
 
-            outfile_mgz = os.path.join(path_to_files, 'example.mgz')
-            outfile_defaced_mgz = os.path.join(outdir, 'example_defaced.mgz')
-            outfile_defaced_nifti = os.path.join(outdir, 'tmpdeface', 'defaced-nifti.nii')
+            # Find full path to the json file
+            filename_json =  os.path.join(dcmfolder, file)
+
+            # Find full path to the NIfTI file
+            basename = os.path.splitext(file)[0]
+            file_path_nii = os.path.join(dcmfolder, f'{basename}.nii')
+
+            outfile_mgz = os.path.join(dcmfolder, f'{basename}.mgz')
+            outfile_defaced_mgz = os.path.join(outdir, f'{basename}_defaced.mgz')
+            outfile_defaced_nifti = os.path.join(outdir, 'tmpdeface', f'{basename}.nii')
             qa = os.path.join(outdir, 'qa')
 
             print("Defacing...")
@@ -370,17 +530,81 @@ class GenericPlugin(EmptyPlugin):
             cmd = f"export FREESURFER_HOME={fshome}" \
                 + " && source $FREESURFER_HOME/SetUpFreeSurfer.sh" \
                 + f" && export SUBJECTS_DIR={subjects_dir}" \
-                + f" && mri_convert {t1w} {outfile_mgz}" \
+                + f" && mri_convert {file_path_nii} {outfile_mgz}" \
                 + f" && {mideface_path} --i {outfile_mgz} --o {outfile_defaced_mgz} --odir {qa}" \
                 + f" && mri_convert {outfile_defaced_mgz} {outfile_defaced_nifti}"
 
             self.run_cmd(cmd,"Error DeFaceing image")
 
+            # Copy corresponding json file in the same folder
+            destination_path = os.path.join(outdir, 'tmpdeface')
+
+            shutil.copy(filename_json, destination_path)
+
             print('======= Done defacing MRI data. =======')
 
+    def copy_flair_files(self, flair_files, dcmfolder, outdir):
+        """Move FLAIR files into the same folder where deface NIfTI T1 files are stored"""
+
+        import os
+        import shutil
+
+        flair_files_to_copy = flair_files['file_name'].tolist()
+        destination_path = os.path.join(outdir, 'tmpdeface')
+        for flair_file in flair_files_to_copy:
+            flair_file_basename = os.path.splitext(flair_file)[0]
+
+            flair_file_path = os.path.join(dcmfolder, flair_file_basename)
+            flair_file_path_nii = f'{flair_file_path}.nii'
+            flair_file_path_json = f'{flair_file_path}.json'
+            shutil.copy(flair_file_path_nii, destination_path)
+            shutil.copy(flair_file_path_json, destination_path)
+
+    def deface_mri(self, method: str, path_to_files: str, outdir_path: str) -> None:
+        import os
+        import pydicom
+        import sys
+        import shutil
+
+        dcmfolder = path_to_files
+        outdir = os.path.join(outdir_path, "defaced")
+
+        # - Create outfolder
+        os.makedirs(os.path.join(outdir_path,'defaced/tmpdeface'), exist_ok = True)
+
+        self.convert_dicom_to_nifti(dcmfolder)
+
+        # All nifti files
+        all_nii_files = [xx for xx in os.listdir(dcmfolder) if xx.endswith(".nii")]
+
+        # All corresponding json files
+        all_json_files = [os.path.join(dcmfolder, xx) for xx in os.listdir(dcmfolder) \
+                          if xx.endswith(".json")]
+
+        mri_metadata = self.read_json_files(all_json_files)
+
+        # Extract T1 files
+        t1w_files = self.find_T1w(mri_metadata)
+
+        # Extract FLAIR files
+        flair_files = self.find_flair(mri_metadata)
+
+        # Extract all files which needs to be defaced
+        t1w_files_to_deface = t1w_files['file_name'].tolist()
+
+        # - Deface using Freesurfer
+        if method == 'freesurfer':
+            if t1w_files_to_deface:
+                self.run_mideface(t1w_files_to_deface, dcmfolder, outdir)
+            else:
+                print("--- T1 is not recognized within uploaded sequences. ---")
+                return
         else:
             print(' Wrong defacing method. It has to be ')
             sys.exit()
+
+        # Copy Flair files into same folder where defaced files are
+        self.copy_flair_files(flair_files, dcmfolder, outdir)
 
     def download_file(self, deface_path: str) -> None:
         import boto3
@@ -392,7 +616,8 @@ class GenericPlugin(EmptyPlugin):
         s3_local = boto3.resource('s3',
                                   endpoint_url=self.__OBJ_STORAGE_URL_LOCAL__,
                                   aws_access_key_id=self.__OBJ_STORAGE_ACCESS_ID_LOCAL__,
-                                  aws_secret_access_key=self.__OBJ_STORAGE_ACCESS_SECRET_LOCAL__,
+                                  aws_secret_access_key=\
+                                    self.__OBJ_STORAGE_ACCESS_SECRET_LOCAL__,
                                   config=Config(signature_version='s3v4'),
                                   region_name=self.__OBJ_STORAGE_REGION__)
 
@@ -452,7 +677,8 @@ class GenericPlugin(EmptyPlugin):
         obj_files = bucket_local.objects.filter(Prefix=folder, Delimiter="/")
 
         if (len(list(obj_files))) > 0:
-            existing_object = s3_local.Object(self.__OBJ_STORAGE_BUCKET_LOCAL__, file_path)
+            existing_object = \
+                s3_local.Object(self.__OBJ_STORAGE_BUCKET_LOCAL__, file_path)
             existing_data = existing_object.get()["Body"].read().decode('utf-8')
             data_to_append = [obj_name, personal_id]
             existing_rows = list(csv.reader(io.StringIO(existing_data)))
@@ -477,11 +703,13 @@ class GenericPlugin(EmptyPlugin):
         import shutil
         from zipfile import ZipFile, ZIP_STORED
         import time
+        import logging
 
         s3_local = boto3.resource('s3',
                                   endpoint_url=self.__OBJ_STORAGE_URL_LOCAL__,
                                   aws_access_key_id=self.__OBJ_STORAGE_ACCESS_ID_LOCAL__,
-                                  aws_secret_access_key=self.__OBJ_STORAGE_ACCESS_SECRET_LOCAL__,
+                                  aws_secret_access_key=\
+                                    self.__OBJ_STORAGE_ACCESS_SECRET_LOCAL__,
                                   config=Config(signature_version='s3v4'),
                                   region_name=self.__OBJ_STORAGE_REGION__)
 
@@ -491,11 +719,13 @@ class GenericPlugin(EmptyPlugin):
             "_final.zip"
 
         # Create zip file with defaced and anonymized data
+        files_exists = False
         with ZipFile(zip_name, 'w', ZIP_STORED) as zipObj:
             # Iterate over all the files in directory
             for root, dirs, files in os.walk(path_to_anonymized_files):
                 for file in files:
                     if file.endswith('.nii'):
+                        files_exists = True
                         # create complete filepath of file in directory
                         file_path = os.path.join(root, file)
                         basename_zip = os.path.basename(path_to_anonymized_files)
@@ -505,27 +735,39 @@ class GenericPlugin(EmptyPlugin):
                         name_in_zipped_file = os.path.join(name_in_zipped_file, file)
 
                         # Add file to zip
-                        zipObj.write(file_path, name_in_zipped_file, compress_type=ZIP_STORED)
+                        zipObj.write(file_path, name_in_zipped_file,
+                                     compress_type=ZIP_STORED)
+
+                        # Add corresponding json file
+                        file_path_json = os.path.splitext(file_path)[0] + ".json"
+                        name_in_zipped_file_json = \
+                            os.path.splitext(name_in_zipped_file)[0] + ".json"
+                        zipObj.write(file_path_json, name_in_zipped_file_json,
+                                     compress_type=ZIP_STORED)
                     else:
                         continue
 
         # Upload output zip file with defaced and anonymized data
-        ts = round(time.time()*1000)
-        folder_name = "MRIs"
-        name_of_file_minio = f"{folder_name}/{obj_name}_{ts}.zip"
-        s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_file(zip_name,
-                                                                       name_of_file_minio)
+        if files_exists:
+            ts = round(time.time()*1000)
+            folder_name = "MRIs"
+            name_of_file_minio = f"{folder_name}/{obj_name}_{ts}.zip"
+            try:
+                s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__)\
+                    .upload_file(zip_name,name_of_file_minio)
+                print('======= File is uploaded to the local storage. =======')
+            except Exception as e:
+                logging.error(e)
 
-        # Update key value file with mapping between filename nad patient id,
-        # this file is stored in the local MinIO instance
-        self.update_filename_pid_mapping(name_of_file_minio, personal_id, s3_local)
+            # Update key value file with mapping between filename and patient id,
+            # this file is stored in the local MinIO instance
+            self.update_filename_pid_mapping(name_of_file_minio, personal_id, s3_local)
 
         # Remove data
         shutil.rmtree(os.path.split(path_to_anonymized_files)[0])
 
-        print('======= File is uploaded to the local storage. =======')
-
-        return name_of_file_minio
+        name_of_file = name_of_file_minio if files_exists else None
+        return name_of_file
 
     def ignore_files(self, dir, files):
         import os
@@ -559,12 +801,13 @@ class GenericPlugin(EmptyPlugin):
                     # Perform defacing
                     self.deface_mri("freesurfer", os.path.join(root), outdir_path)
 
-                except: # if some error occurs during deidentification remove output of
-                    # current data and just continue with other datasets
+                except: # if some error occurs during deidentification
+                    # remove output of current data and just continue with other datasets
                     shutil.rmtree(os.path.join(outdir_path, "defaced"))
-                    logging.error("Impossible to deidentify files within {} folder"\
-                                  .format(basename+current_basename))
+                    logging.error("Impossible to deidentify files within " \
+                                  f"{basename+current_basename} folder")
                     continue
+
             else: # if there are no files, just continue on another level,
                 # to find directory which have files
                 continue
@@ -616,6 +859,8 @@ class GenericPlugin(EmptyPlugin):
         Remove all personal metadata.
         """
         import os
+        import logging
+        import shutil
 
         # Path where original and defaced data will be stored during defacing and
         # anonymisation
@@ -626,25 +871,30 @@ class GenericPlugin(EmptyPlugin):
 
         name_of_anonymized_files = []
         data_dirs = os.listdir(path_to_data)
+        try:
+            for dir in data_dirs:
+                current_path = os.path.join(path_to_data, dir)
 
-        for dir in data_dirs:
-            current_path = os.path.join(path_to_data, dir)
+                if os.path.isdir(current_path):
+                    path_to_copied_structure = os.path.join(path_to_data, "deidentified",
+                                                            dir)
+                    self.reproduce_directory_tree(current_path, path_to_copied_structure)
 
-            if os.path.isdir(current_path):
-                path_to_copied_structure = os.path.join(path_to_data, "deidentified",
-                                                        dir)
-                self.reproduce_directory_tree(current_path, path_to_copied_structure)
+                    # Perform defacing and anonymisation of the DICOM files
+                    self.deidentify_files(current_path, path_to_copied_structure)
 
-                # Perform defacing and anonymisation of the DICOM files
-                self.deidentify_files(current_path, path_to_copied_structure)
+                    # Create personal id
+                    personal_id = self.create_personal_identifier(input_meta.data_info)
 
-                # Create personal id
-                personal_id = self.create_personal_identifier(input_meta.data_info)
+                    # Upload processed data
+                    name_of_file = self.upload_file(path_to_copied_structure, personal_id)
 
-                # Upload processed data
-                name_of_file = self.upload_file(path_to_copied_structure, personal_id)
+                    name_of_anonymized_files.append(name_of_file)
+                    shutil.rmtree(os.path.join(current_path))
 
-                name_of_anonymized_files.append(name_of_file)
+        except Exception as e:
+            logging.error(e)
 
         return PluginActionResponse(None, None, name_of_anonymized_files,
                                     input_meta.data_info)
+
