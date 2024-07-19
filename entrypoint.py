@@ -854,7 +854,107 @@ class GenericPlugin(EmptyPlugin):
 
         return personal_id
 
-    def action(self, input_meta: PluginExchangeMetadata = None) -> PluginActionResponse:
+    def check_files_in_deideintifed_mri(self, path_zip_file):
+        import zipfile
+
+        # Check if the content of uploaded zip file is only consisted of .nii
+        # and .json files
+        allowed_files = {'.nii', '.json', '.NII', '.JSON'}
+
+        with zipfile.ZipFile(path_zip_file, 'r') as zip_ref:
+            # Get the list of all items in the ZIP archive
+            for file_name in zip_ref.namelist():
+                if not file_name.endswith('/'):
+                    if not file_name.endswith(tuple(allowed_files)):
+                        return False
+        return True
+
+    def upload_already_anonymized_and_defaced_mri(self, path_to_data,
+                                                  input_meta):
+        """If the uploaded data already anonymized and defaced, check the
+        content and directly upload data on local and cloud object storage."""
+
+        import boto3
+        from botocore.client import Config
+        import os
+        import shutil
+        import time
+
+        # Download the file which needs to be uploaded
+        s3_local = boto3.resource('s3',
+                                  endpoint_url=self.__OBJ_STORAGE_URL_LOCAL__,
+                                  aws_access_key_id=\
+                                    self.__OBJ_STORAGE_ACCESS_ID_LOCAL__,
+                                  aws_secret_access_key=\
+                                    self.__OBJ_STORAGE_ACCESS_SECRET_LOCAL__,
+                                  config=Config(signature_version='s3v4'),
+                                  region_name=self.__OBJ_STORAGE_REGION__)
+
+        # Existing non annonymized data in local MinIO bucket
+        bucket_local = s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__)
+        obj_personal_data = bucket_local.objects.filter(Prefix="mri_data/",
+                                                        Delimiter="/")
+
+        # Files which needs to be uploaded
+        files_to_upload = [obj.key for obj in obj_personal_data]
+
+        # Remove data directories and zip files if exists
+        # Before download it is not expected to have data for processing inside
+        # this directory
+        for item in os.listdir(path_to_data):
+            current_item = os.path.join(path_to_data, item)
+            if os.path.isdir(current_item):
+                shutil.rmtree(current_item)
+            if item.endswith(".tmp.part") or item.endswith(".zip"):
+                os.remove(current_item)
+
+        # Download data
+        file_name = files_to_upload[0]
+        basename = os.path.basename(file_name)
+        basename_without_ext, _ = \
+            os.path.splitext(os.path.splitext(basename)[0])
+        path_zip_file = f'{path_to_data}{basename_without_ext}.zip'
+
+        s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).download_file(
+            file_name, path_zip_file)
+
+        # Delete original file in local storage
+        s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).objects.filter(
+            Prefix=file_name).delete()
+
+        valid_files = self.check_files_in_deideintifed_mri(path_zip_file)
+
+        if valid_files:
+            # Create personal id
+            personal_id = self.create_personal_identifier(input_meta.data_info)
+
+            # Upload output zip file with defaced and anonymized data
+            ts = round(time.time()*1000)
+            folder_name = "MRIs"
+            name_of_file_minio = \
+                f"{folder_name}/{basename_without_ext}_{ts}.zip"
+            s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_file(
+                path_zip_file, name_of_file_minio)
+
+            print('======= File is uploaded to the local storage. =======')
+
+            # Update key value file with mapping between filename and patient
+            # id, this file is stored in the local MinIO instance
+            self.update_filename_pid_mapping(name_of_file_minio, personal_id,
+                                             s3_local)
+
+            # Remove data
+            os.remove(path_zip_file)
+
+        else:
+            name_of_file_minio = None
+            os.remove(path_zip_file)
+            raise ValueError("Uploaded file contains files other than .nii and .json files")
+
+        return name_of_file_minio
+
+    def action(self, input_meta: PluginExchangeMetadata = None) -> \
+        PluginActionResponse:
         """Run defacing algorithm.
         Remove all personal metadata.
         """
@@ -862,35 +962,48 @@ class GenericPlugin(EmptyPlugin):
         import logging
         import shutil
 
-        # Path where original and defaced data will be stored during defacing and
-        # anonymisation
-        path_to_data = "mescobrad_edge/plugins/mri_anonymisation_plugin/deface_files/"
-
-        # Download data to process
-        self.download_file(path_to_data)
-
-        name_of_anonymized_files = []
-        data_dirs = os.listdir(path_to_data)
         try:
-            for dir in data_dirs:
-                current_path = os.path.join(path_to_data, dir)
+            # Path where original and defaced data will be stored during
+            # defacing and anonymisation
+            path_to_data = \
+                "mescobrad_edge/plugins/mri_anonymisation_plugin/deface_files/"
 
-                if os.path.isdir(current_path):
-                    path_to_copied_structure = os.path.join(path_to_data, "deidentified",
-                                                            dir)
-                    self.reproduce_directory_tree(current_path, path_to_copied_structure)
+            name_of_anonymized_files = []
 
-                    # Perform defacing and anonymisation of the DICOM files
-                    self.deidentify_files(current_path, path_to_copied_structure)
+            if input_meta.data_info["upload_anonymized_and_defaced_data"]:
+                file_name = \
+                    self.upload_already_anonymized_and_defaced_mri(
+                        path_to_data, input_meta)
+                name_of_anonymized_files.append(file_name)
+            else:
+                # Download data to process
+                self.download_file(path_to_data)
+                data_dirs = os.listdir(path_to_data)
 
-                    # Create personal id
-                    personal_id = self.create_personal_identifier(input_meta.data_info)
+                for dir in data_dirs:
+                    current_path = os.path.join(path_to_data, dir)
 
-                    # Upload processed data
-                    name_of_file = self.upload_file(path_to_copied_structure, personal_id)
+                    if os.path.isdir(current_path):
+                        path_to_copied_structure = os.path.join(path_to_data,
+                                                                "deidentified",
+                                                                dir)
+                        self.reproduce_directory_tree(current_path,
+                                                      path_to_copied_structure)
 
-                    name_of_anonymized_files.append(name_of_file)
-                    shutil.rmtree(os.path.join(current_path))
+                        # Perform defacing and anonymisation of the DICOM files
+                        self.deidentify_files(current_path,
+                                              path_to_copied_structure)
+
+                        # Create personal id
+                        personal_id = self.create_personal_identifier(
+                            input_meta.data_info)
+
+                        # Upload processed data
+                        name_of_file = self.upload_file(
+                            path_to_copied_structure, personal_id)
+
+                        name_of_anonymized_files.append(name_of_file)
+                        shutil.rmtree(os.path.join(current_path))
 
         except Exception as e:
             logging.error(e)
