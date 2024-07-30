@@ -292,138 +292,516 @@ class GenericPlugin(EmptyPlugin):
             sys.exit(1)
         self.my_print('\n')
 
+    def check_general(self, data_value, criteria_value):
+        if criteria_value == data_value:
+            return True
+        return False
+
+    def check_series_description(self, data_value, criteria_value,
+                                 exclusion_string):
+        if all(value in data_value for value in criteria_value):
+            if self.check_exclusion_string(data_value, exclusion_string):
+                return True
+        return False
+
+    def check_inversion_time_t2(self, data_value, criteria_value):
+        if data_value:
+            if float(data_value) > criteria_value:
+                return True
+        return False
+
+    def check_inversion_time_t1(self, data_value, criteria_value):
+        if data_value:
+            if float(data_value) < criteria_value:
+                return True
+        return False
+
+    def check_exclusion_string(self, data_value, exclusion_string):
+        if any(value in data_value for value in exclusion_string):
+            return False
+        return True
+
+    def check_scanning_sequence(self, data_value, criteria_value):
+        if all(value in data_value for value in criteria_value):
+            return True
+        return False
+
+    def check_contain_in_data(self, data_value, criteria_value):
+        if data_value in criteria_value:
+            return True
+        return False
+
+    def check_image_type(self, data_value, criteria_value):
+        if all(value not in data_value for value in criteria_value):
+            return True
+        return False
+
     def find_T1w(self, json_metadata):
-        """Among all NIfTI files detect ones for T1w"""
+        """Search for T1 sequences in the uploaded MRI file.
+        First are described criteria which needs to be checked and based on that
+        decide if the sequence is T1 or not"""
 
         criteria_combinations = [
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
-             'PulseSequenceName': 'T1TFE', 'MRAcquisitionType': '3D',
-             'ScanningSequence': 'GR'},
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
-             'PulseSequenceName': 'TIR', 'MRAcquisitionType': '2D',
-             'ScanningSequence': 'IR'}, #not sure if necessary
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
-             'PulseSequenceName': 'SE', 'MRAcquisitionType': '3D',
-             'ScanningSequence': 'SE'},
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
-             'PulseSequenceName': '', 'MRAcquisitionType': '', 'ScanningSequence': 'SE'},
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
-             'PulseSequenceName': '', 'MRAcquisitionType': '2D',
-             'ScanningSequence': 'SE'},
-            {'Manufacturer': 'Siemens', 'SeriesDescription': 'T1',
-             'PulseSequenceDetails': 'tse_vfl', 'MRAcquisitionType': '3D',
-             'ScanningSequence': 'SE'},
-            {'Manufacturer': 'Siemens', 'SeriesDescription': 'mprage',
-             'PulseSequenceDetails': 'tse_vfl', 'MRAcquisitionType': '3D',
-             'ScanningSequence': 'SE'},
-            {'Manufacturer': 'Siemens', 'SeriesDescription': 'T1',
-             'MRAcquisitionType': '3D', 'ScanningSequence': 'GR'},
-            {'Manufacturer': 'Siemens', 'SeriesDescription': 'mprage',
-             'MRAcquisitionType': '3D', 'ScanningSequence': 'GR'},
-            {'Manufacturer': 'GE', 'SeriesDescription': 't1',
-             'PulseSequenceName': 'BRAVO', 'MRAcquisitionType': '3D',
-             'ScanningSequence': 'GR'}
+            {'Modality': 'mr',
+             'Manufacturer':'toshiba',
+             'MRAcquisitionType':'2d',
+             'SeriesDescription': ['t1'],
+             'ScanningSequence':['se']},
+
+            {'Modality': 'mr',
+             'Manufacturer':'hitachi',
+             'MRAcquisitionType':'2d',
+             'SeriesDescription': ['t1'],
+             'ScanningSequence':['se'],
+             'CoilString':'head'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'ge',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['bravo'],
+             'ExclusionStrings':['mpr', '+c'],
+             'ScanningSequence':['gr']},
+
+            {'Modality': 'mr',
+             'Manufacturer':'ge',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['fspgr'],
+             'ExclusionStrings':['mpr', '+c'],
+             'ScanningSequence':['gr']},
+
+            {'Modality': 'mr',
+             'Manufacturer':'ge',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['mpr', '+c'],
+             'ScanningSequence':['gr'],
+             'PulseSequenceName':'bravo'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'ge',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['mpr', '+c'],
+             'ScanningSequence':['gr']},
+
+            {'Modality': 'mr',
+             'Manufacturer':'ge',
+             'MRAcquisitionType':'2d',
+             'SeriesDescription': ['t1', 'se'],
+             'ScanningSequence':['se']},
+
+            {'Modality': 'mr',
+             'Manufacturer':'philips',
+             'MRAcquisitionType':'2d',
+             'SeriesDescription': ['t1'],
+             'ScanningSequence':['ir'],
+             'ImageType':['projection image','mpr'],
+             'PulseSequenceName':'tir'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'philips',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1'],
+             'ScanningSequence':['se'],
+             'ImageType':['projection image','mpr'],
+             'PulseSequenceName':'se'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'philips',
+             'SeriesDescription': ['t1'],
+             'ImageType':['projection image','mpr'],
+             'PulseSequenceName':'se'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'philips',
+             'ScanningSequence':['gr'],
+             'SequenceVariant':'mp',
+             'ImageType':['projection image','mpr'],
+             'PulseSequenceName':'t1tfe'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'philips',
+             'ScanningSequence':['gr'],
+             'SequenceVariant':'sp',
+             'ImageType':['projection image','mpr'],
+             'PulseSequenceName':'t1tfe'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'philips',
+             'ScanningSequence':['se'],
+             'SequenceVariant':'ss',
+             'ImageType':['projection image','mpr']},
+
+            {'Modality': 'mr',
+             'Manufacturer':'philips',
+             'SeriesDescription': ['t1'],
+             'ScanningSequence':['se'],
+             'SequenceVariant':'sk',
+             'PulseSequenceName':'tse'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1', 'mpr'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1', 'mprage'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'2d',
+             'SeriesDescription': ['t1', 'dark'],
+             'ScanningSequence':['se', 'ir'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1', 'space', 'ir'],
+             'ScanningSequence':['se', 'ir'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1'],
+             'ScanningSequence':['se'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5,
+             'PulseSequenceDetails':'tse_vfl'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['mprage'],
+             'ScanningSequence':['se'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5,
+             'PulseSequenceDetails':'tse_vfl'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1'],
+             'ScanningSequence':['gr'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['mprage'],
+             'ScanningSequence':['gr'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5},
+
+            # KCL Criteria
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'SequenceName': 'tfl',
+             'MRAcquisitionType':'3d',
+             'ScanningSequence':['gr'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5},
+
+            # OLD Criteria
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceName': 't1tfe',
+             'MRAcquisitionType': '3d',
+             'ScanningSequence': ['gr']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceName': 'tir',
+             'MRAcquisitionType': '2d',
+             'ScanningSequence': ['ir']}, #not sure if necessary
+
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceName': 'se',
+             'MRAcquisitionType': '3d',
+             'ScanningSequence': ['se']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceName': '',
+             'MRAcquisitionType': '',
+             'ScanningSequence': ['se']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceName': '',
+             'MRAcquisitionType': '2d',
+             'ScanningSequence': ['se']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'siemens',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceDetails': 'tse_vfl',
+             'MRAcquisitionType': '3d',
+             'ScanningSequence': ['se']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'siemens',
+             'SeriesDescription': ['mprage'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceDetails': 'tse_vfl',
+             'MRAcquisitionType': '3d',
+             'ScanningSequence': ['se']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'siemens',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'MRAcquisitionType': '3d',
+             'ScanningSequence': ['gr']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'siemens',
+             'SeriesDescription': ['mprage'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'MRAcquisitionType': '3d',
+             'ScanningSequence': ['gr']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'ge',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceName': 'bravo',
+             'MRAcquisitionType': '3d',
+             'ScanningSequence': ['gr']}
         ]
+        list_files = []
+        diff_keys = ['SeriesDescription', 'ScanningSequence', 'ImageType',
+                     'InversionTime', 'ExclusionStrings', 'PulseSequenceName',
+                     'PulseSequenceDetails', 'Manufacturer', 'SequenceName',
+                     'SequenceVariant']
 
-        # exclusion strings for SeriesDescription:
-        exclusion_strings = ['GAD', 'GD'] #normally T1w is scanned with and without Gd
-
-        verdicts = []
-
-        # Iterate over each JSON file in the directory
         for index, row in json_metadata.iterrows():
-            # Convert field values to lowercase for case-insensitive comparison
             data_lower = {key: value.lower() if isinstance(value, str) else value \
                           for key, value in row.items()}
 
-            # Check each criteria combination
-            verdict = 0
             for criteria in criteria_combinations:
-                criteria_lower = {key: value.lower() if isinstance(value, str) \
-                                  else value for key, value in criteria.items()}
-                if all(criteria_value.lower() in data_lower.get(criteria_key, '').lower()
-                       for criteria_key, criteria_value in criteria_lower.items()):
+                criteria_values = []
+                criteria_keys = set(criteria.keys()) - {'ExclusionStrings'}
+                # First check if all the value from criteria are in data
+                if all(key in data_lower.keys() for key in criteria_keys):
+                    for key in criteria.keys():
+                        if key not in diff_keys:
+                            criteria_values.append(self.check_general(
+                                data_lower[key], criteria[key]))
 
-                    # Check if field2 contains any exclusion strings
-                    if all(exclusion.lower() \
-                           not in data_lower.get('SeriesDescription', '').lower() \
-                           for exclusion in exclusion_strings):
-                        # Exclude Processed images (e.g, MPR)
-                        if (not any('PROJECTION' in s for s in data_lower.get('ImageType'))
-                            and
-                            not any('DERIVED' in s for s in data_lower.get('ImageType'))):
-                            verdict = 1
-                            break
+                        elif key in ['PulseSequenceName',
+                                     'PulseSequenceDetails', 'Manufacturer',
+                                     'SequenceName', 'SequenceVariant']:
+                            criteria_values.append(self.check_contain_in_data(
+                                data_lower[key], criteria[key]))
 
-            verdicts.append(verdict)
+                        elif key == 'SeriesDescription':
+                            exc_strings = criteria['ExclusionStrings'] \
+                                if 'ExclusionStrings' in criteria.keys() else []
+                            res_value = self.check_series_description(
+                                data_lower[key], criteria[key], exc_strings)
+                            criteria_values.append(res_value)
 
-        json_metadata['field_verdict'] = verdicts
-        filtered_json_metadata = json_metadata[json_metadata['field_verdict'] == 1]
-        return filtered_json_metadata
+                        elif key == 'ScanningSequence':
+                            criteria_values.append(self.check_scanning_sequence(
+                                data_lower[key], criteria[key]))
+
+                        elif key == 'ImageType':
+                            # Criteria values must not be present in the
+                            # ImageType field
+                            criteria_values.append(self.check_image_type(
+                                data_lower[key], criteria[key]))
+
+                        elif key == 'InversionTime':
+                            criteria_values.append(self.check_inversion_time_t1
+                                                   (data_lower[key],
+                                                    criteria[key]))
+
+                if criteria_values and all(criteria_values):
+                    file_name = row['json_file_path'] \
+                        if row['json_file_path'] not in list_files else None
+                    if file_name is not None:
+                        list_files.append(file_name)
+
+        return list_files
 
     def find_flair(self, json_metadata):
-        """Among all MRI NIfTI sequences detect Flair ones"""
+        """Among all MRI NIfTI sequences detect T2 ones"""
 
         criteria_combinations = [
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'FLAIR',
-             'PulseSequenceName': 'TIR', 'ScanningSequence': 'IR'},
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'FLR',
-             'PulseSequenceName': 'TIR', 'ScanningSequence': 'IR'},
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'FLAIR',
-             'ScanningSequence': 'IR'},
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'FLR',
-             'ScanningSequence': 'IR'},
-            {'Manufacturer': 'Siemens', 'SeriesDescription': 'FLAIR',
-             'PulseSequenceDetails': 'tse', 'ScanningSequence': 'SE\IR'},
-            {'Manufacturer': 'Siemens', 'SeriesDescription': 'FLR',
-             'PulseSequenceDetails': 'tse', 'ScanningSequence': 'SE\IR'},
-            {'Manufacturer': 'Siemens', 'SeriesDescription': 'dark-fluid',
-             'PulseSequenceDetails': 'tse', 'ScanningSequence': 'SE'},
-            {'Manufacturer': 'GE', 'SeriesDescription': 'flair',
-             'PulseSequenceName': 'T2FLAIR', 'ScanningSequence': 'SE'}
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['flair'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'PulseSequenceName': 'tir',
+             'ScanningSequence': ['ir'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['flr'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'PulseSequenceName': 'tir',
+             'ScanningSequence': ['ir'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['flair'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'ScanningSequence': ['ir'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['flr'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'ScanningSequence': ['ir'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'siemens',
+             'SeriesDescription': ['flair'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'PulseSequenceDetails': 'tse',
+             'ScanningSequence': ['se\ir'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'siemens',
+             'SeriesDescription': ['flr'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'PulseSequenceDetails': 'tse',
+             'ScanningSequence': ['se\ir'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'siemens',
+             'SeriesDescription': ['dark-fluid'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'PulseSequenceDetails': 'tse',
+             'ScanningSequence': ['se'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'ge',
+             'SeriesDescription': ['flair'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'PulseSequenceName': 't2flair',
+             'ScanningSequence': ['se'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'SeriesDescription': ['flair'],
+             'ExclusionStrings':['stir', 'mra'],
+             'InversionTime': 1},
+
+            {'Modality': 'mr',
+             'SeriesDescription': ['t2', 'dark'],
+             'ExclusionStrings':['stir', 'mra'],
+             'InversionTime': 1},
+
+            {'Modality': 'mr',
+             'SeriesDescription': ['t2', 'da', 'fl'],
+             'ExclusionStrings':['stir', 'mra'],
+             'InversionTime': 1},
+
+            {'Modality': 'mr',
+             'SeriesDescription': ['flr'],
+             'ExclusionStrings':['stir', 'mra'],
+             'InversionTime': 1}
+
         ]
+        list_files = []
+        diff_keys = ['SeriesDescription', 'ScanningSequence', 'ImageType',
+                     'InversionTime', 'ExclusionStrings', 'PulseSequenceName',
+                     'PulseSequenceDetails', 'Manufacturer', 'SequenceName',
+                     'SequenceVariant']
 
-        # exclusion strings for SeriesDescription:
-        exclusion_strings = ['HIPO', 'MIP', '1nsa']
-
-        verdicts = []
-
-        # Iterate over each JSON file in the directory
         for index, row in json_metadata.iterrows():
-            # Convert field values to lowercase for case-insensitive comparison
             data_lower = {key: value.lower() if isinstance(value, str) else value \
                           for key, value in row.items()}
 
-            # Check each criteria combination
-            verdict = 0
             for criteria in criteria_combinations:
-                criteria_lower = {key: value.lower() if isinstance(value, str) else value
-                                  for key, value in criteria.items()}
-                if all(criteria_value.lower() in data_lower.get(criteria_key, '').lower()
-                       for criteria_key, criteria_value in criteria_lower.items()):
+                criteria_values = []
+                criteria_keys = set(criteria.keys()) - {'ExclusionStrings'}
+                # First check if all the value from criteria are in data
+                if all(key in data_lower.keys() for key in criteria_keys):
+                    for key in criteria.keys():
+                        if key not in diff_keys:
+                            criteria_values.append(self.check_general(
+                                data_lower[key], criteria[key]))
 
-                    # Check if field2 contains any exclusion strings
-                    if all(exclusion.lower()
-                           not in data_lower.get('SeriesDescription', '').lower()
-                           for exclusion in exclusion_strings):
+                        elif key in ['PulseSequenceName',
+                                     'PulseSequenceDetails', 'Manufacturer',
+                                     'SequenceName', 'SequenceVariant']:
+                            criteria_values.append(self.check_contain_in_data(
+                                data_lower[key], criteria[key]))
 
-                        # Exclude Processed images (e.g, MPR)
-                        if (not any('PROJECTION' in s for s in data_lower.get('ImageType'))
-                            or
-                            not any('DERIVED' in s for s in data_lower.get('ImageType'))):
-                            verdict = 2
-                            break
+                        elif key == 'SeriesDescription':
+                            exc_strings = criteria['ExclusionStrings'] \
+                                if 'ExclusionStrings' in criteria.keys() else []
+                            res_value = self.check_series_description(
+                                data_lower[key], criteria[key], exc_strings)
+                            criteria_values.append(res_value)
 
-            verdicts.append(verdict)
+                        elif key == 'ScanningSequence':
+                            criteria_values.append(self.check_scanning_sequence(
+                                data_lower[key], criteria[key]))
 
-        json_metadata['field_verdict'] = verdicts
-        filtered_json_metadata = json_metadata[json_metadata['field_verdict'] == 2]
-        return filtered_json_metadata
+                        elif key == 'ImageType':
+                            # Criteria values for this field must not be present
+                            # in the data of the file
+                            criteria_values.append(self.check_image_type(
+                                data_lower[key], criteria[key]))
 
+                        elif key == 'InversionTime':
+                            criteria_values.append(self.check_inversion_time_t2(
+                                data_lower[key],criteria[key]))
+
+                if criteria_values and all(criteria_values):
+                    file_name = row['json_file_path'] \
+                        if row['json_file_path'] not in list_files else None
+                    if file_name is not None:
+                        list_files.append(file_name)
+
+        return list_files
 
     def read_json_files(self, json_files_list):
         """Read json files to extract information needed to detect T1 or T2
-        sequince"""
+        sequence"""
         import pandas as pd
         import os
         import json
@@ -548,14 +926,13 @@ class GenericPlugin(EmptyPlugin):
 
             print('======= Done defacing MRI data. =======')
 
-    def copy_flair_files(self, flair_files, outdir):
+    def copy_flair_files(self, flair_files_to_copy, outdir):
         """Move FLAIR files into the same folder where deface NIfTI T1 files
         are stored"""
 
         import os
         import shutil
 
-        flair_files_to_copy = flair_files['json_file_path'].tolist()
         destination_path = os.path.join(outdir, 'tmpdeface/T2')
 
         # - Create outfolder
@@ -770,16 +1147,14 @@ class GenericPlugin(EmptyPlugin):
             mri_metadata = self.read_json_files(all_json_files)
 
             # Extract T1 files
-            t1w_files = self.find_T1w(mri_metadata)
+            t1w_files_to_deface = self.find_T1w(mri_metadata)
 
             # Extract FLAIR files
             flair_files = self.find_flair(mri_metadata)
 
-            # Extract all files which needs to be defaced
-            t1w_files_to_deface = t1w_files['json_file_path'].tolist()
-
             print(' T1 files which are detected and need to be defaced \n')
             print(t1w_files_to_deface)
+
             if t1w_files_to_deface:
                 outdir_path = os.path.join(outdir, "defaced")
                 # - Create outfolder
@@ -790,11 +1165,10 @@ class GenericPlugin(EmptyPlugin):
             else:
                 print("--- T1 is not recognized within uploaded sequences. ---")
 
-        except:
+        except Exception as e:
             shutil.rmtree(outdir)
-            logging.error("--- Impossible to deidentify files within " \
-                            f"{path_to_files} folder ---")
-
+            logging.error(e ,"\n--- Impossible to deidentify files within " \
+                          f"{path_to_files} folder ---")
 
 
     def generate_personal_id(self, personal_data):
@@ -993,6 +1367,12 @@ class GenericPlugin(EmptyPlugin):
 
         except Exception as e:
             logging.error(e)
+
+        finally:
+            data_dirs = os.listdir(path_to_data)
+            for dir in data_dirs:
+                if os.path.isdir(os.path.join(path_to_data, dir)):
+                    shutil.rmtree(os.path.join(path_to_data, dir))
 
         return PluginActionResponse(None, None, name_of_anonymized_files,
                                     input_meta.data_info)
