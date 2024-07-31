@@ -261,7 +261,68 @@ class GenericPlugin(EmptyPlugin):
                         dcmdata.ReferencedImageSequence=None
                     if 'ProcedureCodeSequence' in dcmdata:
                         dcmdata.ProcedureCodeSequence = None
-
+                    if 'AccessionNumber' in dcmdata:
+                        dcmdata.AccessionNumber = None
+                    if 'IssuerOfAccessionNumberSequence' in dcmdata:
+                        dcmdata.IssuerOfAccessionNumberSequence = None
+                    if 'ReferringPhysicianName' in dcmdata:
+                        dcmdata.ReferringPhysicianName = None
+                    if 'ReferringPhysicianIdentificationSequence' in dcmdata:
+                        dcmdata.ReferringPhysicianIdentificationSequence = None
+                    if 'InstitutionName' in dcmdata:
+                        dcmdata.InstitutionName = None
+                    if 'InstitutionAddress' in dcmdata:
+                        dcmdata.InstitutionAddress = None
+                    if 'StationName' in dcmdata:
+                        dcmdata.StationName = None
+                    if 'InstitutionCodeSequence' in dcmdata:
+                        dcmdata.InstitutionCodeSequence = None
+                    if 'InstitutionalDepartmentName' in dcmdata:
+                        dcmdata.InstitutionalDepartmentName = None
+                    if 'InstitutionalDepartmentTypeCodeSequence' in dcmdata:
+                        dcmdata.InstitutionalDepartmentTypeCodeSequence = None
+                    if 'PersonIdentificationCodeSequence' in dcmdata:
+                        dcmdata.PersonIdentificationCodeSequence = None
+                    if 'PersonAddress' in dcmdata:
+                        dcmdata.PersonAddress = None
+                    if 'PersonTelephoneNumbers' in dcmdata:
+                        dcmdata.PersonTelephoneNumbers = None
+                    if 'PersonTelecomInformation' in dcmdata:
+                        dcmdata.PersonTelecomInformation = None
+                    if 'ConsultingPhysicianName' in dcmdata:
+                        dcmdata.ConsultingPhysicianName = None
+                    if 'ConsultingPhysicianIdentificationSequence' in dcmdata:
+                        dcmdata.ConsultingPhysicianIdentificationSequence = None
+                    if 'PhysiciansOfRecord' in dcmdata:
+                        dcmdata.PhysiciansOfRecord = None
+                    if 'PhysiciansOfRecordIdentificationSequence' in dcmdata:
+                        dcmdata.PhysiciansOfRecordIdentificationSequence = None
+                    if 'NameOfPhysiciansReadingStudy' in dcmdata:
+                        dcmdata.NameOfPhysiciansReadingStudy = None
+                    if 'PhysiciansReadingStudyIdentificationSequence' in dcmdata:
+                        dcmdata.PhysiciansReadingStudyIdentificationSequence = None
+                    if 'ReferencedStudySequence' in dcmdata:
+                        dcmdata.ReferencedStudySequence = None
+                    if 'RequestingServiceCodeSequence' in dcmdata:
+                        dcmdata.RequestingServiceCodeSequence = None
+                    if 'StudyInstanceUID' in dcmdata:
+                        dcmdata.StudyInstanceUID = None
+                    if 'StudyID' in dcmdata:
+                        dcmdata.StudyID = None
+                    if 'RequestingService' in dcmdata:
+                        dcmdata.RequestingService = None
+                    if 'RequestingServiceCodeSequence' in dcmdata:
+                        dcmdata.RequestingServiceCodeSequence = None
+                    if 'ReasonForPerformedProcedureCodeSequence' in dcmdata:
+                        dcmdata.ReasonForPerformedProcedureCodeSequence = None
+                    if 'PerformingPhysicianName' in dcmdata:
+                        dcmdata.PerformingPhysicianName = None
+                    if 'PerformingPhysicianIdentificationSequence' in dcmdata:
+                        dcmdata.PerformingPhysicianIdentificationSequence = None
+                    if 'OperatorsName' in dcmdata:
+                        dcmdata.OperatorsName = None
+                    if 'OperatorIdentificationSequence' in dcmdata:
+                        dcmdata.OperatorIdentificationSequence = None
 
                     # Save updated annon MRI
                     outfiletmp = cdcm
