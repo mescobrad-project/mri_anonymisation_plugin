@@ -1,5 +1,5 @@
-from mescobrad_edge.plugins.mri_anonymisation_plugin.models.plugin import EmptyPlugin,\
-      PluginActionResponse, PluginExchangeMetadata
+from mescobrad_edge.plugins.mri_anonymisation_plugin.models.plugin import \
+    EmptyPlugin,PluginActionResponse, PluginExchangeMetadata
 
 class GenericPlugin(EmptyPlugin):
     def annon_mri(self, path_to_defaced_files: str) -> None:
@@ -261,7 +261,68 @@ class GenericPlugin(EmptyPlugin):
                         dcmdata.ReferencedImageSequence=None
                     if 'ProcedureCodeSequence' in dcmdata:
                         dcmdata.ProcedureCodeSequence = None
-
+                    if 'AccessionNumber' in dcmdata:
+                        dcmdata.AccessionNumber = None
+                    if 'IssuerOfAccessionNumberSequence' in dcmdata:
+                        dcmdata.IssuerOfAccessionNumberSequence = None
+                    if 'ReferringPhysicianName' in dcmdata:
+                        dcmdata.ReferringPhysicianName = None
+                    if 'ReferringPhysicianIdentificationSequence' in dcmdata:
+                        dcmdata.ReferringPhysicianIdentificationSequence = None
+                    if 'InstitutionName' in dcmdata:
+                        dcmdata.InstitutionName = None
+                    if 'InstitutionAddress' in dcmdata:
+                        dcmdata.InstitutionAddress = None
+                    if 'StationName' in dcmdata:
+                        dcmdata.StationName = None
+                    if 'InstitutionCodeSequence' in dcmdata:
+                        dcmdata.InstitutionCodeSequence = None
+                    if 'InstitutionalDepartmentName' in dcmdata:
+                        dcmdata.InstitutionalDepartmentName = None
+                    if 'InstitutionalDepartmentTypeCodeSequence' in dcmdata:
+                        dcmdata.InstitutionalDepartmentTypeCodeSequence = None
+                    if 'PersonIdentificationCodeSequence' in dcmdata:
+                        dcmdata.PersonIdentificationCodeSequence = None
+                    if 'PersonAddress' in dcmdata:
+                        dcmdata.PersonAddress = None
+                    if 'PersonTelephoneNumbers' in dcmdata:
+                        dcmdata.PersonTelephoneNumbers = None
+                    if 'PersonTelecomInformation' in dcmdata:
+                        dcmdata.PersonTelecomInformation = None
+                    if 'ConsultingPhysicianName' in dcmdata:
+                        dcmdata.ConsultingPhysicianName = None
+                    if 'ConsultingPhysicianIdentificationSequence' in dcmdata:
+                        dcmdata.ConsultingPhysicianIdentificationSequence = None
+                    if 'PhysiciansOfRecord' in dcmdata:
+                        dcmdata.PhysiciansOfRecord = None
+                    if 'PhysiciansOfRecordIdentificationSequence' in dcmdata:
+                        dcmdata.PhysiciansOfRecordIdentificationSequence = None
+                    if 'NameOfPhysiciansReadingStudy' in dcmdata:
+                        dcmdata.NameOfPhysiciansReadingStudy = None
+                    if 'PhysiciansReadingStudyIdentificationSequence' in dcmdata:
+                        dcmdata.PhysiciansReadingStudyIdentificationSequence = None
+                    if 'ReferencedStudySequence' in dcmdata:
+                        dcmdata.ReferencedStudySequence = None
+                    if 'RequestingServiceCodeSequence' in dcmdata:
+                        dcmdata.RequestingServiceCodeSequence = None
+                    if 'StudyInstanceUID' in dcmdata:
+                        dcmdata.StudyInstanceUID = None
+                    if 'StudyID' in dcmdata:
+                        dcmdata.StudyID = None
+                    if 'RequestingService' in dcmdata:
+                        dcmdata.RequestingService = None
+                    if 'RequestingServiceCodeSequence' in dcmdata:
+                        dcmdata.RequestingServiceCodeSequence = None
+                    if 'ReasonForPerformedProcedureCodeSequence' in dcmdata:
+                        dcmdata.ReasonForPerformedProcedureCodeSequence = None
+                    if 'PerformingPhysicianName' in dcmdata:
+                        dcmdata.PerformingPhysicianName = None
+                    if 'PerformingPhysicianIdentificationSequence' in dcmdata:
+                        dcmdata.PerformingPhysicianIdentificationSequence = None
+                    if 'OperatorsName' in dcmdata:
+                        dcmdata.OperatorsName = None
+                    if 'OperatorIdentificationSequence' in dcmdata:
+                        dcmdata.OperatorIdentificationSequence = None
 
                     # Save updated annon MRI
                     outfiletmp = cdcm
@@ -292,139 +353,516 @@ class GenericPlugin(EmptyPlugin):
             sys.exit(1)
         self.my_print('\n')
 
+    def check_general(self, data_value, criteria_value):
+        if criteria_value == data_value:
+            return True
+        return False
+
+    def check_series_description(self, data_value, criteria_value,
+                                 exclusion_string):
+        if all(value in data_value for value in criteria_value):
+            if self.check_exclusion_string(data_value, exclusion_string):
+                return True
+        return False
+
+    def check_inversion_time_t2(self, data_value, criteria_value):
+        if data_value:
+            if float(data_value) > criteria_value:
+                return True
+        return False
+
+    def check_inversion_time_t1(self, data_value, criteria_value):
+        if data_value:
+            if float(data_value) < criteria_value:
+                return True
+        return False
+
+    def check_exclusion_string(self, data_value, exclusion_string):
+        if any(value in data_value for value in exclusion_string):
+            return False
+        return True
+
+    def check_scanning_sequence(self, data_value, criteria_value):
+        if all(value in data_value for value in criteria_value):
+            return True
+        return False
+
+    def check_contain_in_data(self, data_value, criteria_value):
+        if data_value in criteria_value:
+            return True
+        return False
+
+    def check_image_type(self, data_value, criteria_value):
+        if all(value not in data_value for value in criteria_value):
+            return True
+        return False
+
     def find_T1w(self, json_metadata):
-        """Among all NIfTI files detect ones for T1w"""
+        """Search for T1 sequences in the uploaded MRI file.
+        First are described criteria which needs to be checked and based on that
+        decide if the sequence is T1 or not"""
 
         criteria_combinations = [
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
-             'PulseSequenceName': 'T1TFE', 'MRAcquisitionType': '3D',
-             'ScanningSequence': 'GR'},
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
-             'PulseSequenceName': 'TIR', 'MRAcquisitionType': '2D',
-             'ScanningSequence': 'IR'}, #not sure if necessary
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
-             'PulseSequenceName': 'SE', 'MRAcquisitionType': '3D',
-             'ScanningSequence': 'SE'},
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
-             'PulseSequenceName': '', 'MRAcquisitionType': '', 'ScanningSequence': 'SE'},
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'T1',
-             'PulseSequenceName': '', 'MRAcquisitionType': '2D',
-             'ScanningSequence': 'SE'},
-            {'Manufacturer': 'Siemens', 'SeriesDescription': 'T1',
-             'PulseSequenceDetails': 'tse_vfl', 'MRAcquisitionType': '3D',
-             'ScanningSequence': 'SE'},
-            {'Manufacturer': 'Siemens', 'SeriesDescription': 'mprage',
-             'PulseSequenceDetails': 'tse_vfl', 'MRAcquisitionType': '3D',
-             'ScanningSequence': 'SE'},
-            {'Manufacturer': 'Siemens', 'SeriesDescription': 'T1',
-             'MRAcquisitionType': '3D', 'ScanningSequence': 'GR'},
-            {'Manufacturer': 'Siemens', 'SeriesDescription': 'mprage',
-             'MRAcquisitionType': '3D', 'ScanningSequence': 'GR'},
-            {'Manufacturer': 'GE', 'SeriesDescription': 't1',
-             'PulseSequenceName': 'BRAVO', 'MRAcquisitionType': '3D',
-             'ScanningSequence': 'GR'}
+            {'Modality': 'mr',
+             'Manufacturer':'toshiba',
+             'MRAcquisitionType':'2d',
+             'SeriesDescription': ['t1'],
+             'ScanningSequence':['se']},
+
+            {'Modality': 'mr',
+             'Manufacturer':'hitachi',
+             'MRAcquisitionType':'2d',
+             'SeriesDescription': ['t1'],
+             'ScanningSequence':['se'],
+             'CoilString':'head'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'ge',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['bravo'],
+             'ExclusionStrings':['mpr', '+c'],
+             'ScanningSequence':['gr']},
+
+            {'Modality': 'mr',
+             'Manufacturer':'ge',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['fspgr'],
+             'ExclusionStrings':['mpr', '+c'],
+             'ScanningSequence':['gr']},
+
+            {'Modality': 'mr',
+             'Manufacturer':'ge',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['mpr', '+c'],
+             'ScanningSequence':['gr'],
+             'PulseSequenceName':'bravo'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'ge',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['mpr', '+c'],
+             'ScanningSequence':['gr']},
+
+            {'Modality': 'mr',
+             'Manufacturer':'ge',
+             'MRAcquisitionType':'2d',
+             'SeriesDescription': ['t1', 'se'],
+             'ScanningSequence':['se']},
+
+            {'Modality': 'mr',
+             'Manufacturer':'philips',
+             'MRAcquisitionType':'2d',
+             'SeriesDescription': ['t1'],
+             'ScanningSequence':['ir'],
+             'ImageType':['projection image','mpr'],
+             'PulseSequenceName':'tir'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'philips',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1'],
+             'ScanningSequence':['se'],
+             'ImageType':['projection image','mpr'],
+             'PulseSequenceName':'se'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'philips',
+             'SeriesDescription': ['t1'],
+             'ImageType':['projection image','mpr'],
+             'PulseSequenceName':'se'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'philips',
+             'ScanningSequence':['gr'],
+             'SequenceVariant':'mp',
+             'ImageType':['projection image','mpr'],
+             'PulseSequenceName':'t1tfe'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'philips',
+             'ScanningSequence':['gr'],
+             'SequenceVariant':'sp',
+             'ImageType':['projection image','mpr'],
+             'PulseSequenceName':'t1tfe'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'philips',
+             'ScanningSequence':['se'],
+             'SequenceVariant':'ss',
+             'ImageType':['projection image','mpr']},
+
+            {'Modality': 'mr',
+             'Manufacturer':'philips',
+             'SeriesDescription': ['t1'],
+             'ScanningSequence':['se'],
+             'SequenceVariant':'sk',
+             'PulseSequenceName':'tse'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1', 'mpr'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1', 'mprage'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'2d',
+             'SeriesDescription': ['t1', 'dark'],
+             'ScanningSequence':['se', 'ir'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1', 'space', 'ir'],
+             'ScanningSequence':['se', 'ir'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1'],
+             'ScanningSequence':['se'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5,
+             'PulseSequenceDetails':'tse_vfl'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['mprage'],
+             'ScanningSequence':['se'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5,
+             'PulseSequenceDetails':'tse_vfl'},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['t1'],
+             'ScanningSequence':['gr'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5},
+
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'MRAcquisitionType':'3d',
+             'SeriesDescription': ['mprage'],
+             'ScanningSequence':['gr'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5},
+
+            # KCL Criteria
+            {'Modality': 'mr',
+             'Manufacturer':'siemens',
+             'SequenceName': 'tfl',
+             'MRAcquisitionType':'3d',
+             'ScanningSequence':['gr'],
+             'ImageType':['derived'],
+             'InversionTime': 1.5},
+
+            # OLD Criteria
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceName': 't1tfe',
+             'MRAcquisitionType': '3d',
+             'ScanningSequence': ['gr']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceName': 'tir',
+             'MRAcquisitionType': '2d',
+             'ScanningSequence': ['ir']}, #not sure if necessary
+
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceName': 'se',
+             'MRAcquisitionType': '3d',
+             'ScanningSequence': ['se']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceName': '',
+             'MRAcquisitionType': '',
+             'ScanningSequence': ['se']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceName': '',
+             'MRAcquisitionType': '2d',
+             'ScanningSequence': ['se']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'siemens',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceDetails': 'tse_vfl',
+             'MRAcquisitionType': '3d',
+             'ScanningSequence': ['se']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'siemens',
+             'SeriesDescription': ['mprage'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceDetails': 'tse_vfl',
+             'MRAcquisitionType': '3d',
+             'ScanningSequence': ['se']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'siemens',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'MRAcquisitionType': '3d',
+             'ScanningSequence': ['gr']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'siemens',
+             'SeriesDescription': ['mprage'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'MRAcquisitionType': '3d',
+             'ScanningSequence': ['gr']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'ge',
+             'SeriesDescription': ['t1'],
+             'ExclusionStrings':['gad', 'gd'],
+             'ImageType':['projection','derived'],
+             'PulseSequenceName': 'bravo',
+             'MRAcquisitionType': '3d',
+             'ScanningSequence': ['gr']}
         ]
+        list_files = []
+        diff_keys = ['SeriesDescription', 'ScanningSequence', 'ImageType',
+                     'InversionTime', 'ExclusionStrings', 'PulseSequenceName',
+                     'PulseSequenceDetails', 'Manufacturer', 'SequenceName',
+                     'SequenceVariant']
 
-        # exclusion strings for SeriesDescription:
-        exclusion_strings = ['GAD', 'GD'] #normally T1w is scanned with and without Gd
-
-        verdicts = []
-
-        # Iterate over each JSON file in the directory
         for index, row in json_metadata.iterrows():
-            # Convert field values to lowercase for case-insensitive comparison
             data_lower = {key: value.lower() if isinstance(value, str) else value \
                           for key, value in row.items()}
 
-            # Check each criteria combination
-            verdict = 0
             for criteria in criteria_combinations:
-                criteria_lower = {key: value.lower() if isinstance(value, str) \
-                                  else value for key, value in criteria.items()}
-                if all(criteria_value.lower() in data_lower.get(criteria_key, '').lower()
-                       for criteria_key, criteria_value in criteria_lower.items()):
+                criteria_values = []
+                criteria_keys = set(criteria.keys()) - {'ExclusionStrings'}
+                # First check if all the value from criteria are in data
+                if all(key in data_lower.keys() for key in criteria_keys):
+                    for key in criteria.keys():
+                        if key not in diff_keys:
+                            criteria_values.append(self.check_general(
+                                data_lower[key], criteria[key]))
 
-                    # Check if field2 contains any exclusion strings
-                    if all(exclusion.lower() \
-                           not in data_lower.get('SeriesDescription', '').lower() \
-                           for exclusion in exclusion_strings):
-                        # Exclude Processed images (e.g, MPR)
-                        if (not any('PROJECTION' in s for s in data_lower.get('ImageType'))
-                            and
-                            not any('DERIVED' in s for s in data_lower.get('ImageType'))):
-                            verdict = 1
-                            print(data_lower.get('file_name'))
-                            break
+                        elif key in ['PulseSequenceName',
+                                     'PulseSequenceDetails', 'Manufacturer',
+                                     'SequenceName', 'SequenceVariant']:
+                            criteria_values.append(self.check_contain_in_data(
+                                data_lower[key], criteria[key]))
 
-            verdicts.append(verdict)
+                        elif key == 'SeriesDescription':
+                            exc_strings = criteria['ExclusionStrings'] \
+                                if 'ExclusionStrings' in criteria.keys() else []
+                            res_value = self.check_series_description(
+                                data_lower[key], criteria[key], exc_strings)
+                            criteria_values.append(res_value)
 
-        json_metadata['field_verdict'] = verdicts
-        filtered_json_metadata = json_metadata[json_metadata['field_verdict'] == 1]
-        return filtered_json_metadata
+                        elif key == 'ScanningSequence':
+                            criteria_values.append(self.check_scanning_sequence(
+                                data_lower[key], criteria[key]))
+
+                        elif key == 'ImageType':
+                            # Criteria values must not be present in the
+                            # ImageType field
+                            criteria_values.append(self.check_image_type(
+                                data_lower[key], criteria[key]))
+
+                        elif key == 'InversionTime':
+                            criteria_values.append(self.check_inversion_time_t1
+                                                   (data_lower[key],
+                                                    criteria[key]))
+
+                if criteria_values and all(criteria_values):
+                    file_name = row['json_file_path'] \
+                        if row['json_file_path'] not in list_files else None
+                    if file_name is not None:
+                        list_files.append(file_name)
+
+        return list_files
 
     def find_flair(self, json_metadata):
-        """Among all MRI NIfTI sequences detect Flair ones"""
+        """Among all MRI NIfTI sequences detect T2 ones"""
 
         criteria_combinations = [
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'FLAIR',
-             'PulseSequenceName': 'TIR', 'ScanningSequence': 'IR'},
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'FLR',
-             'PulseSequenceName': 'TIR', 'ScanningSequence': 'IR'},
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'FLAIR',
-             'ScanningSequence': 'IR'},
-            {'Manufacturer': 'Philips', 'SeriesDescription': 'FLR',
-             'ScanningSequence': 'IR'},
-            {'Manufacturer': 'Siemens', 'SeriesDescription': 'FLAIR',
-             'PulseSequenceDetails': 'tse', 'ScanningSequence': 'SE\IR'},
-            {'Manufacturer': 'Siemens', 'SeriesDescription': 'FLR',
-             'PulseSequenceDetails': 'tse', 'ScanningSequence': 'SE\IR'},
-            {'Manufacturer': 'Siemens', 'SeriesDescription': 'dark-fluid',
-             'PulseSequenceDetails': 'tse', 'ScanningSequence': 'SE'},
-            {'Manufacturer': 'GE', 'SeriesDescription': 'flair',
-             'PulseSequenceName': 'T2FLAIR', 'ScanningSequence': 'SE'}
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['flair'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'PulseSequenceName': 'tir',
+             'ScanningSequence': ['ir'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['flr'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'PulseSequenceName': 'tir',
+             'ScanningSequence': ['ir'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['flair'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'ScanningSequence': ['ir'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'philips',
+             'SeriesDescription': ['flr'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'ScanningSequence': ['ir'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'siemens',
+             'SeriesDescription': ['flair'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'PulseSequenceDetails': 'tse',
+             'ScanningSequence': ['se\ir'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'siemens',
+             'SeriesDescription': ['flr'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'PulseSequenceDetails': 'tse',
+             'ScanningSequence': ['se\ir'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'siemens',
+             'SeriesDescription': ['dark-fluid'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'PulseSequenceDetails': 'tse',
+             'ScanningSequence': ['se'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'Manufacturer': 'ge',
+             'SeriesDescription': ['flair'],
+             'ExclusionStrings':['hipo', 'mip', '1nsa'],
+             'PulseSequenceName': 't2flair',
+             'ScanningSequence': ['se'],
+             'ImageType':['projection','derived']},
+
+            {'Modality': 'mr',
+             'SeriesDescription': ['flair'],
+             'ExclusionStrings':['stir', 'mra'],
+             'InversionTime': 1},
+
+            {'Modality': 'mr',
+             'SeriesDescription': ['t2', 'dark'],
+             'ExclusionStrings':['stir', 'mra'],
+             'InversionTime': 1},
+
+            {'Modality': 'mr',
+             'SeriesDescription': ['t2', 'da', 'fl'],
+             'ExclusionStrings':['stir', 'mra'],
+             'InversionTime': 1},
+
+            {'Modality': 'mr',
+             'SeriesDescription': ['flr'],
+             'ExclusionStrings':['stir', 'mra'],
+             'InversionTime': 1}
+
         ]
+        list_files = []
+        diff_keys = ['SeriesDescription', 'ScanningSequence', 'ImageType',
+                     'InversionTime', 'ExclusionStrings', 'PulseSequenceName',
+                     'PulseSequenceDetails', 'Manufacturer', 'SequenceName',
+                     'SequenceVariant']
 
-        # exclusion strings for SeriesDescription:
-        exclusion_strings = ['HIPO', 'MIP', '1nsa']
-
-        verdicts = []
-
-        # Iterate over each JSON file in the directory
         for index, row in json_metadata.iterrows():
-            # Convert field values to lowercase for case-insensitive comparison
             data_lower = {key: value.lower() if isinstance(value, str) else value \
                           for key, value in row.items()}
 
-            # Check each criteria combination
-            verdict = 0
             for criteria in criteria_combinations:
-                criteria_lower = {key: value.lower() if isinstance(value, str) else value
-                                  for key, value in criteria.items()}
-                if all(criteria_value.lower() in data_lower.get(criteria_key, '').lower()
-                       for criteria_key, criteria_value in criteria_lower.items()):
+                criteria_values = []
+                criteria_keys = set(criteria.keys()) - {'ExclusionStrings'}
+                # First check if all the value from criteria are in data
+                if all(key in data_lower.keys() for key in criteria_keys):
+                    for key in criteria.keys():
+                        if key not in diff_keys:
+                            criteria_values.append(self.check_general(
+                                data_lower[key], criteria[key]))
 
-                    # Check if field2 contains any exclusion strings
-                    if all(exclusion.lower()
-                           not in data_lower.get('SeriesDescription', '').lower()
-                           for exclusion in exclusion_strings):
+                        elif key in ['PulseSequenceName',
+                                     'PulseSequenceDetails', 'Manufacturer',
+                                     'SequenceName', 'SequenceVariant']:
+                            criteria_values.append(self.check_contain_in_data(
+                                data_lower[key], criteria[key]))
 
-                        # Exclude Processed images (e.g, MPR)
-                        if (not any('PROJECTION' in s for s in data_lower.get('ImageType'))
-                            or
-                            not any('DERIVED' in s for s in data_lower.get('ImageType'))):
-                            verdict = 2
-                            print(data_lower.get('file_name'))
-                            break
+                        elif key == 'SeriesDescription':
+                            exc_strings = criteria['ExclusionStrings'] \
+                                if 'ExclusionStrings' in criteria.keys() else []
+                            res_value = self.check_series_description(
+                                data_lower[key], criteria[key], exc_strings)
+                            criteria_values.append(res_value)
 
-            verdicts.append(verdict)
+                        elif key == 'ScanningSequence':
+                            criteria_values.append(self.check_scanning_sequence(
+                                data_lower[key], criteria[key]))
 
-        json_metadata['field_verdict'] = verdicts
-        filtered_json_metadata = json_metadata[json_metadata['field_verdict'] == 2]
-        return filtered_json_metadata
+                        elif key == 'ImageType':
+                            # Criteria values for this field must not be present
+                            # in the data of the file
+                            criteria_values.append(self.check_image_type(
+                                data_lower[key], criteria[key]))
 
+                        elif key == 'InversionTime':
+                            criteria_values.append(self.check_inversion_time_t2(
+                                data_lower[key],criteria[key]))
+
+                if criteria_values and all(criteria_values):
+                    file_name = row['json_file_path'] \
+                        if row['json_file_path'] not in list_files else None
+                    if file_name is not None:
+                        list_files.append(file_name)
+
+        return list_files
 
     def read_json_files(self, json_files_list):
-        """Read json files to extract information needed to detect T1 or Flair sequince"""
+        """Read json files to extract information needed to detect T1 or T2
+        sequence"""
         import pandas as pd
         import os
         import json
@@ -444,6 +882,7 @@ class GenericPlugin(EmptyPlugin):
                 # Add a column with the folder path to identify the source
                 json_df['folder_path'] = file_path
                 json_df['file_name'] = file_name
+                json_df['json_file_path'] = json_file_path
 
                 # Concatenate with the main DataFrame
                 df = pd.concat([df, json_df], ignore_index=True)
@@ -471,11 +910,12 @@ class GenericPlugin(EmptyPlugin):
         print(".  Using dicom: "+idcm)
 
         try: # convert original DICOM file into NIfTI file
-            cmd = 'dcm2niix ' + str(idcm)
+            cmd = 'dcm2niix ' + str(dcmfolder)
             self.run_cmd(cmd, "Error converting dicom to nifti file")
 
-        except: # in case of specific DICOM it needs to be first converted into new DICOM
-            # file with gdcmconv tool and then continue with conversion into NIfTI file
+        except: # in case of specific DICOM it needs to be first converted into
+            # new DICOM file with gdcmconv tool and then continue with
+            # conversion into NIfTI file
 
             out_folder = os.path.join(dcmfolder, 'gdcm_convert')
             for fn in os.listdir(dcmfolder):
@@ -486,15 +926,17 @@ class GenericPlugin(EmptyPlugin):
 
                 # convert DICOM to DICOM file
                 cmd_gdcmconv = f"gdcmconv --jpeg {idcm} {odcm}"
-                self.run_cmd(cmd_gdcmconv, "Error converting dicom to dicom file")
+                self.run_cmd(cmd_gdcmconv,
+                             "Error converting dicom to dicom file")
 
             # converted DICOMs convert to NIfTI
             cmd_dcm2niix = f'dcm2niix -o {dcmfolder} {odcm}'
-            self.run_cmd(cmd_dcm2niix, "Error converting gdcm dicom to nifti file")
+            self.run_cmd(cmd_dcm2niix,
+                         "Error converting gdcm dicom to nifti file")
 
-    def run_mideface(self, t1w_files_to_deface, dcmfolder, outdir):
-        """Perform defacing on the NIfTI T1 files. Mideface algorithm from Freesrufer is
-        used for defacing"""
+    def run_mideface(self, t1w_files_to_deface, outdir):
+        """Perform defacing on the NIfTI T1 files. Mideface algorithm from
+        Freesurfer is used for defacing"""
 
         import os
         import shutil
@@ -503,21 +945,23 @@ class GenericPlugin(EmptyPlugin):
         subjects_dir = "mescobrad_edge/plugins/mri_anonymisation_plugin/deface_files/"
         mideface_path = "mescobrad_edge/plugins/mri_anonymisation_plugin/mideface/freesurfer/bin/mideface"
 
-        for file in t1w_files_to_deface:
+        for filename_json in t1w_files_to_deface:
 
             # Find full path to the json file
-            filename_json =  os.path.join(dcmfolder, file)
+            dcmfolder, file = os.path.split(filename_json)
 
             # Find full path to the NIfTI file
             basename = os.path.splitext(file)[0]
             file_path_nii = os.path.join(dcmfolder, f'{basename}.nii')
 
             outfile_mgz = os.path.join(dcmfolder, f'{basename}.mgz')
-            outfile_defaced_mgz = os.path.join(outdir, f'{basename}_defaced.mgz')
-            outfile_defaced_nifti = os.path.join(outdir, 'tmpdeface', f'{basename}.nii')
+            outfile_defaced_mgz = os.path.join(outdir,
+                                               f'{basename}_defaced.mgz')
+            outfile_defaced_nifti = os.path.join(outdir, 'tmpdeface/T1',
+                                                 f'{basename}.nii')
             qa = os.path.join(outdir, 'qa')
 
-            print("Defacing...")
+            print(" Defacing... \n")
 
             # Run the mideface algorithm
             # a) Set Freesurfer path
@@ -537,74 +981,34 @@ class GenericPlugin(EmptyPlugin):
             self.run_cmd(cmd,"Error DeFaceing image")
 
             # Copy corresponding json file in the same folder
-            destination_path = os.path.join(outdir, 'tmpdeface')
+            destination_path = os.path.join(outdir, 'tmpdeface/T1')
 
             shutil.copy(filename_json, destination_path)
 
             print('======= Done defacing MRI data. =======')
 
-    def copy_flair_files(self, flair_files, dcmfolder, outdir):
-        """Move FLAIR files into the same folder where deface NIfTI T1 files are stored"""
+    def copy_flair_files(self, flair_files_to_copy, outdir):
+        """Move FLAIR files into the same folder where deface NIfTI T1 files
+        are stored"""
 
         import os
         import shutil
 
-        flair_files_to_copy = flair_files['file_name'].tolist()
-        destination_path = os.path.join(outdir, 'tmpdeface')
-        for flair_file in flair_files_to_copy:
-            flair_file_basename = os.path.splitext(flair_file)[0]
+        destination_path = os.path.join(outdir, 'tmpdeface/T2')
+
+        # - Create outfolder
+        os.makedirs(destination_path, exist_ok = True)
+
+        for flair_file_path_json in flair_files_to_copy:
+            dcmfolder, file = \
+                os.path.split(flair_file_path_json)
+            flair_file_basename = os.path.splitext(file)[0]
 
             flair_file_path = os.path.join(dcmfolder, flair_file_basename)
             flair_file_path_nii = f'{flair_file_path}.nii'
-            flair_file_path_json = f'{flair_file_path}.json'
             shutil.copy(flair_file_path_nii, destination_path)
             shutil.copy(flair_file_path_json, destination_path)
 
-    def deface_mri(self, method: str, path_to_files: str, outdir_path: str) -> None:
-        import os
-        import pydicom
-        import sys
-        import shutil
-
-        dcmfolder = path_to_files
-        outdir = os.path.join(outdir_path, "defaced")
-
-        # - Create outfolder
-        os.makedirs(os.path.join(outdir_path,'defaced/tmpdeface'), exist_ok = True)
-
-        self.convert_dicom_to_nifti(dcmfolder)
-
-        # All nifti files
-        all_nii_files = [xx for xx in os.listdir(dcmfolder) if xx.endswith(".nii")]
-
-        # All corresponding json files
-        all_json_files = [os.path.join(dcmfolder, xx) for xx in os.listdir(dcmfolder) \
-                          if xx.endswith(".json")]
-
-        mri_metadata = self.read_json_files(all_json_files)
-
-        # Extract T1 files
-        t1w_files = self.find_T1w(mri_metadata)
-
-        # Extract FLAIR files
-        flair_files = self.find_flair(mri_metadata)
-
-        # Extract all files which needs to be defaced
-        t1w_files_to_deface = t1w_files['file_name'].tolist()
-
-        # - Deface using Freesurfer
-        if method == 'freesurfer':
-            if t1w_files_to_deface:
-                self.run_mideface(t1w_files_to_deface, dcmfolder, outdir)
-            else:
-                print("--- T1 is not recognized within uploaded sequences. ---")
-                return
-        else:
-            print(' Wrong defacing method. It has to be ')
-            sys.exit()
-
-        # Copy Flair files into same folder where defaced files are
-        self.copy_flair_files(flair_files, dcmfolder, outdir)
 
     def download_file(self, deface_path: str) -> None:
         import boto3
@@ -615,7 +1019,8 @@ class GenericPlugin(EmptyPlugin):
 
         s3_local = boto3.resource('s3',
                                   endpoint_url=self.__OBJ_STORAGE_URL_LOCAL__,
-                                  aws_access_key_id=self.__OBJ_STORAGE_ACCESS_ID_LOCAL__,
+                                  aws_access_key_id=\
+                                    self.__OBJ_STORAGE_ACCESS_ID_LOCAL__,
                                   aws_secret_access_key=\
                                     self.__OBJ_STORAGE_ACCESS_SECRET_LOCAL__,
                                   config=Config(signature_version='s3v4'),
@@ -623,14 +1028,15 @@ class GenericPlugin(EmptyPlugin):
 
         # Existing non annonymized data in local MinIO bucket
         bucket_local = s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__)
-        obj_personal_data = bucket_local.objects.filter(Prefix="mri_data/", Delimiter="/")
+        obj_personal_data = bucket_local.objects.filter(Prefix="mri_data/",
+                                                        Delimiter="/")
 
         # Files which are not yet anonymized
         files_to_anonymize = [obj.key for obj in obj_personal_data]
 
         # Remove data directories and zip files if exists
-        # Before download it is not expected to have data for processing inside this
-        # directory
+        # Before download it is not expected to have data for processing inside
+        # this directory
         for item in os.listdir(deface_path):
             current_item = os.path.join(deface_path, item)
             if os.path.isdir(current_item):
@@ -650,15 +1056,8 @@ class GenericPlugin(EmptyPlugin):
                 objects.filter(Prefix=file_name).delete()
 
             with zipfile.ZipFile(path_zip_file, 'r') as zip_ref:
-                # Get the list of all items in the ZIP archive
-                zip_contents = zip_ref.namelist()
-
-                # Check if any item in the root directory is a file
-                contains_files = any('/' not in item for item in zip_contents)
-                if contains_files:
-                    path_to_unzip=deface_path + os.path.basename(file_name).split(".")[0]
-                else:
-                    path_to_unzip=deface_path
+                path_to_unzip=\
+                    deface_path + os.path.basename(file_name).split(".")[0]
 
                 zip_ref.extractall(path_to_unzip)
 
@@ -696,7 +1095,8 @@ class GenericPlugin(EmptyPlugin):
             s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_fileobj(
                 io.BytesIO(updated_data.getvalue().encode('utf-8')), file_path)
 
-    def upload_file(self, path_to_anonymized_files: str, personal_id: str) -> None:
+    def upload_file(self, path_to_anonymized_files: str, personal_id: str) -> \
+        None:
         import boto3
         from botocore.client import Config
         import os
@@ -707,7 +1107,8 @@ class GenericPlugin(EmptyPlugin):
 
         s3_local = boto3.resource('s3',
                                   endpoint_url=self.__OBJ_STORAGE_URL_LOCAL__,
-                                  aws_access_key_id=self.__OBJ_STORAGE_ACCESS_ID_LOCAL__,
+                                  aws_access_key_id=\
+                                    self.__OBJ_STORAGE_ACCESS_ID_LOCAL__,
                                   aws_secret_access_key=\
                                     self.__OBJ_STORAGE_ACCESS_SECRET_LOCAL__,
                                   config=Config(signature_version='s3v4'),
@@ -728,11 +1129,15 @@ class GenericPlugin(EmptyPlugin):
                         files_exists = True
                         # create complete filepath of file in directory
                         file_path = os.path.join(root, file)
-                        basename_zip = os.path.basename(path_to_anonymized_files)
+                        basename_zip = os.path.basename(
+                            path_to_anonymized_files)
                         second_part_of_zip_name = root.split(basename_zip)[1]
-                        name_in_zipped_file = basename_zip + \
-                            os.path.split(second_part_of_zip_name)[0]
-                        name_in_zipped_file = os.path.join(name_in_zipped_file, file)
+                        second_part_of_zip_name = \
+                            second_part_of_zip_name.replace("tmpdeface/", "")
+                        name_in_zipped_file = \
+                            basename_zip + second_part_of_zip_name
+                        name_in_zipped_file = os.path.join(name_in_zipped_file,
+                                                           file)
 
                         # Add file to zip
                         zipObj.write(file_path, name_in_zipped_file,
@@ -754,32 +1159,21 @@ class GenericPlugin(EmptyPlugin):
             name_of_file_minio = f"{folder_name}/{obj_name}_{ts}.zip"
             try:
                 s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__)\
-                    .upload_file(zip_name,name_of_file_minio)
+                    .upload_file(zip_name, name_of_file_minio)
                 print('======= File is uploaded to the local storage. =======')
             except Exception as e:
                 logging.error(e)
 
-            # Update key value file with mapping between filename and patient id,
-            # this file is stored in the local MinIO instance
-            self.update_filename_pid_mapping(name_of_file_minio, personal_id, s3_local)
+            # Update key value file with mapping between filename and patient
+            # id, this file is stored in the local MinIO instance
+            self.update_filename_pid_mapping(name_of_file_minio, personal_id,
+                                             s3_local)
 
         # Remove data
         shutil.rmtree(os.path.split(path_to_anonymized_files)[0])
 
         name_of_file = name_of_file_minio if files_exists else None
         return name_of_file
-
-    def ignore_files(self, dir, files):
-        import os
-        return [f for f in files if os.path.isfile(os.path.join(dir, f))]
-
-
-    def reproduce_directory_tree(self, path_to_files, path_to_copied_structure):
-        """Create the copy of the data structure, ignoring the files."""
-        import shutil
-        shutil.copytree(path_to_files,
-                        path_to_copied_structure,
-                        ignore=self.ignore_files)
 
     def deidentify_files(self, path_to_files, outdir):
         """Iterate through data structure, and for each directory
@@ -789,28 +1183,54 @@ class GenericPlugin(EmptyPlugin):
         import logging
         import shutil
 
-        basename = os.path.basename(path_to_files)
-        for root, dirs, files in os.walk(path_to_files):
-            if files: # check if there are files within current directory
-                current_basename = root.split(basename)[1]
-                outdir_path = outdir + current_basename
-                try:
+        try:
+            os.makedirs(outdir, exist_ok = True)
+            for root, dirs, files in os.walk(path_to_files):
+                if files: # check if there are files within current directory
                     # Remove all personal information
+                    print(' Anonymization started ... \n')
                     self.annon_mri(path_to_defaced_files=os.path.join(root))
 
-                    # Perform defacing
-                    self.deface_mri("freesurfer", os.path.join(root), outdir_path)
+                    # Convert to nifti files
+                    print(' Conversion to NiFTI files ... \n')
+                    dcmfolder = path_to_files
+                    self.convert_dicom_to_nifti(dcmfolder)
 
-                except: # if some error occurs during deidentification
-                    # remove output of current data and just continue with other datasets
-                    shutil.rmtree(os.path.join(outdir_path, "defaced"))
-                    logging.error("Impossible to deidentify files within " \
-                                  f"{basename+current_basename} folder")
-                    continue
+            print(' Extracting T1 and T2 sequences ... \n')
+            # Extract all metadata to find appropriate T1 and T2 files
+            # All corresponding json files
+            all_json_files = []
+            for root, dirs, files in os.walk(path_to_files):
+                for file in files:
+                    if file.endswith('.json'):
+                        all_json_files.append(os.path.join(root, file))
 
-            else: # if there are no files, just continue on another level,
-                # to find directory which have files
-                continue
+            mri_metadata = self.read_json_files(all_json_files)
+
+            # Extract T1 files
+            t1w_files_to_deface = self.find_T1w(mri_metadata)
+
+            # Extract FLAIR files
+            flair_files = self.find_flair(mri_metadata)
+
+            print(' T1 files which are detected and need to be defaced \n')
+            print(t1w_files_to_deface)
+
+            if t1w_files_to_deface:
+                outdir_path = os.path.join(outdir, "defaced")
+                # - Create outfolder
+                os.makedirs(os.path.join(outdir,'defaced/tmpdeface/T1'),
+                            exist_ok = True)
+                self.run_mideface(t1w_files_to_deface, outdir_path)
+                self.copy_flair_files(flair_files, outdir_path)
+            else:
+                print("--- T1 is not recognized within uploaded sequences. ---")
+
+        except Exception as e:
+            shutil.rmtree(outdir)
+            logging.error(e ,"\n--- Impossible to deidentify files within " \
+                          f"{path_to_files} folder ---")
+
 
     def generate_personal_id(self, personal_data):
         """Based on the identity, full_name and date of birth."""
@@ -834,21 +1254,23 @@ class GenericPlugin(EmptyPlugin):
                                                data_info['date_of_birth'],
                                                data_info['unique_id']]):
 
-            # Make unified dates, so that different formats of date doesn't change the
-            # final id
-            data_info["date_of_birth"] = pd.to_datetime(data_info["date_of_birth"],
-                                                        dayfirst=True)
+            # Make unified dates, so that different formats of date doesn't
+            # change the final id
+            data_info["date_of_birth"] = pd.to_datetime(
+                data_info["date_of_birth"], dayfirst=True)
 
-            data_info["date_of_birth"] = data_info["date_of_birth"].strftime("%d-%m-%Y")
+            data_info["date_of_birth"] = \
+                data_info["date_of_birth"].strftime("%d-%m-%Y")
 
-            # Personal id is made based on name, surname, date date of birth, and national
-            # unique id
+            # Personal id is made based on name, surname, date date of birth,
+            # and national unique id
             personal_data = [data_info["name"], data_info["surname"],
                              data_info["date_of_birth"], data_info["unique_id"]]
 
             personal_id = self.generate_personal_id(personal_data)
         else:
-            # If the data is not provided create an empty string for the personal ID
+            # If the data is not provided create an empty string for the
+            # personal ID
             personal_data = []
             personal_id = self.generate_personal_id(personal_data)
 
@@ -984,15 +1406,13 @@ class GenericPlugin(EmptyPlugin):
                     current_path = os.path.join(path_to_data, dir)
 
                     if os.path.isdir(current_path):
-                        path_to_copied_structure = os.path.join(path_to_data,
+                        path_to_defaced_structure = os.path.join(path_to_data,
                                                                 "deidentified",
                                                                 dir)
-                        self.reproduce_directory_tree(current_path,
-                                                      path_to_copied_structure)
 
                         # Perform defacing and anonymisation of the DICOM files
                         self.deidentify_files(current_path,
-                                              path_to_copied_structure)
+                                              path_to_defaced_structure)
 
                         # Create personal id
                         personal_id = self.create_personal_identifier(
@@ -1000,13 +1420,20 @@ class GenericPlugin(EmptyPlugin):
 
                         # Upload processed data
                         name_of_file = self.upload_file(
-                            path_to_copied_structure, personal_id)
+                            path_to_defaced_structure, personal_id)
 
                         name_of_anonymized_files.append(name_of_file)
-                        shutil.rmtree(os.path.join(current_path))
+                        if os.path.exists(current_path):
+                            shutil.rmtree(os.path.join(current_path))
 
         except Exception as e:
             logging.error(e)
+
+        finally:
+            data_dirs = os.listdir(path_to_data)
+            for dir in data_dirs:
+                if os.path.isdir(os.path.join(path_to_data, dir)):
+                    shutil.rmtree(os.path.join(path_to_data, dir))
 
         return PluginActionResponse(None, None, name_of_anonymized_files,
                                     input_meta.data_info)
