@@ -365,7 +365,7 @@ class GenericPlugin(EmptyPlugin):
                 return True
         return False
 
-    def check_inversion_time_t2(self, data_value, criteria_value):
+    def check_inversion_time_flair(self, data_value, criteria_value):
         if data_value:
             if float(data_value) > criteria_value:
                 return True
@@ -719,7 +719,7 @@ class GenericPlugin(EmptyPlugin):
         return list_files
 
     def find_flair(self, json_metadata):
-        """Among all MRI NIfTI sequences detect T2 ones"""
+        """Among all MRI NIfTI sequences detect Flair ones"""
 
         criteria_combinations = [
             {'Modality': 'mr',
@@ -849,7 +849,7 @@ class GenericPlugin(EmptyPlugin):
                                 data_lower[key], criteria[key]))
 
                         elif key == 'InversionTime':
-                            criteria_values.append(self.check_inversion_time_t2(
+                            criteria_values.append(self.check_inversion_time_flair(
                                 data_lower[key],criteria[key]))
 
                 if criteria_values and all(criteria_values):
@@ -861,7 +861,7 @@ class GenericPlugin(EmptyPlugin):
         return list_files
 
     def read_json_files(self, json_files_list):
-        """Read json files to extract information needed to detect T1 or T2
+        """Read json files to extract information needed to detect T1 or Flair
         sequence"""
         import pandas as pd
         import os
@@ -994,7 +994,7 @@ class GenericPlugin(EmptyPlugin):
         import os
         import shutil
 
-        destination_path = os.path.join(outdir, 'tmpdeface/T2')
+        destination_path = os.path.join(outdir, 'tmpdeface/Flair')
 
         # - Create outfolder
         os.makedirs(destination_path, exist_ok = True)
@@ -1010,12 +1010,12 @@ class GenericPlugin(EmptyPlugin):
             shutil.copy(flair_file_path_json, destination_path)
 
 
-    def download_file(self, deface_path: str) -> None:
+    def download_file(self, file_name: str, path_zip_file: str,
+                      path_to_unzip: str) -> None:
         import boto3
         from botocore.client import Config
         import zipfile
         import os
-        import shutil
 
         s3_local = boto3.resource('s3',
                                   endpoint_url=self.__OBJ_STORAGE_URL_LOCAL__,
@@ -1026,43 +1026,18 @@ class GenericPlugin(EmptyPlugin):
                                   config=Config(signature_version='s3v4'),
                                   region_name=self.__OBJ_STORAGE_REGION__)
 
-        # Existing non annonymized data in local MinIO bucket
-        bucket_local = s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__)
-        obj_personal_data = bucket_local.objects.filter(Prefix="mri_data/",
-                                                        Delimiter="/")
+        s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__)\
+            .download_file(file_name, path_zip_file)
 
-        # Files which are not yet anonymized
-        files_to_anonymize = [obj.key for obj in obj_personal_data]
+        # Delete original file in local storage
+        s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).\
+            objects.filter(Prefix=file_name).delete()
 
-        # Remove data directories and zip files if exists
-        # Before download it is not expected to have data for processing inside
-        # this directory
-        for item in os.listdir(deface_path):
-            current_item = os.path.join(deface_path, item)
-            if os.path.isdir(current_item):
-                shutil.rmtree(current_item)
-            if item.endswith(".tmp.part"):
-                os.remove(current_item)
+        with zipfile.ZipFile(path_zip_file, 'r') as zip_ref:
+            zip_ref.extractall(path_to_unzip)
 
-        # Download data which need to be defaced and anonymized
-        for file_name in files_to_anonymize:
-            path_zip_file = deface_path+os.path.basename(file_name)
-
-            s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__)\
-                .download_file(file_name, path_zip_file)
-
-            # Delete original file in local storage
-            s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).\
-                objects.filter(Prefix=file_name).delete()
-
-            with zipfile.ZipFile(path_zip_file, 'r') as zip_ref:
-                path_to_unzip=\
-                    deface_path + os.path.basename(file_name).split(".")[0]
-
-                zip_ref.extractall(path_to_unzip)
-
-            # After extraction delete downloaded zip file
-            os.remove(path_zip_file)
+        # After extraction delete downloaded zip file
+        os.remove(path_zip_file)
 
     def create_pseudoMRN(self, mrn, workspace_id):
         import hashlib
@@ -1120,9 +1095,7 @@ class GenericPlugin(EmptyPlugin):
         import boto3
         from botocore.client import Config
         import os
-        import shutil
         from zipfile import ZipFile, ZIP_STORED
-        import time
         import logging
 
         s3_local = boto3.resource('s3',
@@ -1136,8 +1109,7 @@ class GenericPlugin(EmptyPlugin):
 
 
         obj_name = os.path.split(path_to_anonymized_files)[1]
-        zip_name = os.path.split(path_to_anonymized_files)[0] + "/" + obj_name + \
-            "_final.zip"
+        zip_name = path_to_anonymized_files + "/" + obj_name + "_final.zip"
 
         # Create zip file with defaced and anonymized data
         files_exists = False
@@ -1174,14 +1146,14 @@ class GenericPlugin(EmptyPlugin):
 
         # Upload output zip file with defaced and anonymized data
         if files_exists:
-            ts = round(time.time()*1000)
             folder_name = "MRIs"
-            name_of_file_minio = f"{folder_name}/{obj_name}_{ts}.zip"
+            name_of_file_minio = f"{folder_name}/{obj_name}.zip"
             try:
                 s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__)\
                     .upload_file(zip_name, name_of_file_minio)
                 print('======= File is uploaded to the local storage. =======')
             except Exception as e:
+                os.remove(zip_name)
                 logging.error(e)
 
             # Update key value file with mapping between filename and patient
@@ -1189,8 +1161,7 @@ class GenericPlugin(EmptyPlugin):
             self.update_filename_pid_mapping(name_of_file_minio, personal_id,
                                              pseudoMRN, mrn, s3_local)
 
-        # Remove data
-        shutil.rmtree(os.path.split(path_to_anonymized_files)[0])
+        os.remove(zip_name)
 
         name_of_file = name_of_file_minio if files_exists else None
         return name_of_file
@@ -1211,13 +1182,13 @@ class GenericPlugin(EmptyPlugin):
                     print(' Anonymization started ... \n')
                     self.annon_mri(path_to_defaced_files=os.path.join(root))
 
-                    # Convert to nifti files
-                    print(' Conversion to NiFTI files ... \n')
-                    dcmfolder = path_to_files
-                    self.convert_dicom_to_nifti(dcmfolder)
+            # Convert to nifti files
+            print(' Conversion to NiFTI files ... \n')
+            dcmfolder = path_to_files
+            self.convert_dicom_to_nifti(dcmfolder)
 
-            print(' Extracting T1 and T2 sequences ... \n')
-            # Extract all metadata to find appropriate T1 and T2 files
+            print(' Extracting T1 and Flair sequences ... \n')
+            # Extract all metadata to find appropriate T1 and Flair files
             # All corresponding json files
             all_json_files = []
             for root, dirs, files in os.walk(path_to_files):
@@ -1311,16 +1282,15 @@ class GenericPlugin(EmptyPlugin):
                         return False
         return True
 
-    def upload_already_anonymized_and_defaced_mri(self, path_to_data,
-                                                  input_meta):
+    def upload_already_anonymized_and_defaced_mri(self, input_meta,
+                                                  path_zip_file,
+                                                  basename_without_ext):
         """If the uploaded data already anonymized and defaced, check the
         content and directly upload data on local and cloud object storage."""
 
         import boto3
         from botocore.client import Config
         import os
-        import shutil
-        import time
 
         # Download the file which needs to be uploaded
         s3_local = boto3.resource('s3',
@@ -1332,31 +1302,7 @@ class GenericPlugin(EmptyPlugin):
                                   config=Config(signature_version='s3v4'),
                                   region_name=self.__OBJ_STORAGE_REGION__)
 
-        # Existing non annonymized data in local MinIO bucket
-        bucket_local = s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__)
-        obj_personal_data = bucket_local.objects.filter(Prefix="mri_data/",
-                                                        Delimiter="/")
-
-        # Files which needs to be uploaded
-        files_to_upload = [obj.key for obj in obj_personal_data]
-
-        # Remove data directories and zip files if exists
-        # Before download it is not expected to have data for processing inside
-        # this directory
-        for item in os.listdir(path_to_data):
-            current_item = os.path.join(path_to_data, item)
-            if os.path.isdir(current_item):
-                shutil.rmtree(current_item)
-            if item.endswith(".tmp.part") or item.endswith(".zip"):
-                os.remove(current_item)
-
-        # Download data
-        file_name = files_to_upload[0]
-        basename = os.path.basename(file_name)
-        basename_without_ext, _ = \
-            os.path.splitext(os.path.splitext(basename)[0])
-        path_zip_file = f'{path_to_data}{basename_without_ext}.zip'
-
+        file_name = input_meta.data_info['filename']
         s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).download_file(
             file_name, path_zip_file)
 
@@ -1376,10 +1322,8 @@ class GenericPlugin(EmptyPlugin):
                                       input_meta.data_info['workspace_id'])
 
             # Upload output zip file with defaced and anonymized data
-            ts = round(time.time()*1000)
             folder_name = "MRIs"
-            name_of_file_minio = \
-                f"{folder_name}/{basename_without_ext}_{ts}.zip"
+            name_of_file_minio = f"{folder_name}/{basename_without_ext}.zip"
             s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_file(
                 path_zip_file, name_of_file_minio)
 
@@ -1417,56 +1361,77 @@ class GenericPlugin(EmptyPlugin):
             path_to_data = \
                 "mescobrad_edge/plugins/mri_anonymisation_plugin/deface_files/"
 
-            name_of_anonymized_files = []
+            name_of_anonymized_files = None
+
+            # File which needs to be processed
+            file_name = input_meta.data_info['filename']
+
+            # Path init
+            path_to_zip_file = None
+            path_to_unzip_file = None
+            path_to_defaced_structure = None
+
 
             if input_meta.data_info["upload_anonymized_and_defaced_data"]:
-                file_name = \
+
+                basename = os.path.basename(file_name)
+                basename_without_ext, _ = \
+                    os.path.splitext(os.path.splitext(basename)[0])
+                path_to_zip_file = f'{path_to_data}{basename_without_ext}.zip'
+
+                name_of_file = \
                     self.upload_already_anonymized_and_defaced_mri(
-                        path_to_data, input_meta)
-                name_of_anonymized_files.append(file_name)
+                        input_meta, path_to_zip_file, basename_without_ext)
+                name_of_anonymized_files = name_of_file
             else:
+
+                path_to_zip_file = path_to_data + os.path.basename(file_name)
+                path_to_unzip_file = path_to_data + os.path.basename(file_name).split(".")[0]
+
                 # Download data to process
-                self.download_file(path_to_data)
-                data_dirs = os.listdir(path_to_data)
+                self.download_file(file_name, path_to_zip_file,
+                                   path_to_unzip_file)
 
-                for dir in data_dirs:
-                    current_path = os.path.join(path_to_data, dir)
 
-                    if os.path.isdir(current_path):
-                        path_to_defaced_structure = os.path.join(path_to_data,
-                                                                "deidentified",
-                                                                dir)
+                if os.path.isdir(path_to_unzip_file):
+                    dir = os.path.basename(path_to_unzip_file)
+                    path_to_defaced_structure = os.path.join(path_to_data,
+                                                             "deidentified",
+                                                             dir)
 
-                        # Perform defacing and anonymisation of the DICOM files
-                        self.deidentify_files(current_path,
-                                              path_to_defaced_structure)
+                    # Perform defacing and anonymisation of the DICOM files
+                    self.deidentify_files(path_to_unzip_file,
+                                          path_to_defaced_structure)
 
-                        # Create personal id
-                        personal_id = self.create_personal_identifier(
-                            input_meta.data_info)
+                    # Create personal id
+                    personal_id = self.create_personal_identifier(
+                        input_meta.data_info)
 
-                        # Create pseudoMRN
-                        pseudoMRN = self.create_pseudoMRN(
-                            input_meta.data_info['MRN'],
-                            input_meta.data_info['workspace_id'])
+                    # Create pseudoMRN
+                    pseudoMRN = self.create_pseudoMRN(
+                        input_meta.data_info['MRN'],
+                        input_meta.data_info['workspace_id'])
 
-                        # Upload processed data
-                        name_of_file = self.upload_file(
-                            path_to_defaced_structure, personal_id, pseudoMRN,
-                            input_meta.data_info['MRN'])
+                    # Upload processed data
+                    name_of_file = self.upload_file(
+                        path_to_defaced_structure, personal_id, pseudoMRN,
+                        input_meta.data_info['MRN'])
 
-                        name_of_anonymized_files.append(name_of_file)
-                        if os.path.exists(current_path):
-                            shutil.rmtree(os.path.join(current_path))
+                    name_of_anonymized_files = name_of_file
 
         except Exception as e:
             logging.error(e)
 
         finally:
-            data_dirs = os.listdir(path_to_data)
-            for dir in data_dirs:
-                if os.path.isdir(os.path.join(path_to_data, dir)):
-                    shutil.rmtree(os.path.join(path_to_data, dir))
+            if path_to_zip_file is not None \
+                and os.path.exists(path_to_zip_file):
+                os.remove(path_to_zip_file)
+            if path_to_defaced_structure is not None \
+                and os.path.exists(path_to_defaced_structure):
+                shutil.rmtree(path_to_defaced_structure)
+            if path_to_unzip_file is not None \
+                and os.path.exists(path_to_unzip_file):
+                shutil.rmtree(path_to_unzip_file)
 
         return PluginActionResponse(None, None, name_of_anonymized_files,
                                     input_meta.data_info)
