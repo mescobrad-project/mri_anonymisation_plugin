@@ -1064,7 +1064,22 @@ class GenericPlugin(EmptyPlugin):
             # After extraction delete downloaded zip file
             os.remove(path_zip_file)
 
-    def update_filename_pid_mapping(self, obj_name, personal_id, s3_local):
+    def create_pseudoMRN(self, mrn, workspace_id):
+        import hashlib
+
+        if mrn is None:
+            pseudoMRN = None
+        else:
+            personalMRN = [mrn, workspace_id]
+            personal_mrn = "".join(str(data) for data in personalMRN)
+
+            # Generate ID
+            pseudoMRN = hashlib.sha256(bytes(personal_mrn, "utf-8")).hexdigest()
+
+        return pseudoMRN
+
+    def update_filename_pid_mapping(self, obj_name, personal_id, pseudoMRN, mrn,
+                                    s3_local):
         import csv
         import io
 
@@ -1079,24 +1094,29 @@ class GenericPlugin(EmptyPlugin):
             existing_object = \
                 s3_local.Object(self.__OBJ_STORAGE_BUCKET_LOCAL__, file_path)
             existing_data = existing_object.get()["Body"].read().decode('utf-8')
-            data_to_append = [obj_name, personal_id]
+            data_to_append = [obj_name, personal_id, pseudoMRN, mrn]
             existing_rows = list(csv.reader(io.StringIO(existing_data)))
             existing_rows.append(data_to_append)
+
+            # Update column names
+            column_names = ['filename', 'personal_id', 'pseudoMRN', 'MRN']
+            if any(col_name not in existing_rows[0] for col_name in column_names):
+                existing_rows[0] = column_names
 
             updated_data = io.StringIO()
             csv.writer(updated_data).writerows(existing_rows)
             s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_fileobj(
                 io.BytesIO(updated_data.getvalue().encode('utf-8')), file_path)
         else:
-            key_values = ['filename', 'personal_id']
-            file_data = [key_values, [obj_name, personal_id]]
+            key_values = ['filename', 'personal_id', 'pseudoMRN', 'MRN']
+            file_data = [key_values, [obj_name, personal_id, pseudoMRN, mrn]]
             updated_data = io.StringIO()
             csv.writer(updated_data).writerows(file_data)
             s3_local.Bucket(self.__OBJ_STORAGE_BUCKET_LOCAL__).upload_fileobj(
                 io.BytesIO(updated_data.getvalue().encode('utf-8')), file_path)
 
-    def upload_file(self, path_to_anonymized_files: str, personal_id: str) -> \
-        None:
+    def upload_file(self, path_to_anonymized_files: str, personal_id: str,
+                    pseudoMRN: str, mrn: str) -> None:
         import boto3
         from botocore.client import Config
         import os
@@ -1167,7 +1187,7 @@ class GenericPlugin(EmptyPlugin):
             # Update key value file with mapping between filename and patient
             # id, this file is stored in the local MinIO instance
             self.update_filename_pid_mapping(name_of_file_minio, personal_id,
-                                             s3_local)
+                                             pseudoMRN, mrn, s3_local)
 
         # Remove data
         shutil.rmtree(os.path.split(path_to_anonymized_files)[0])
@@ -1350,6 +1370,11 @@ class GenericPlugin(EmptyPlugin):
             # Create personal id
             personal_id = self.create_personal_identifier(input_meta.data_info)
 
+            # Create pseudoMRN
+            pseudoMRN = \
+                self.create_pseudoMRN(input_meta.data_info["MRN"],
+                                      input_meta.data_info['workspace_id'])
+
             # Upload output zip file with defaced and anonymized data
             ts = round(time.time()*1000)
             folder_name = "MRIs"
@@ -1363,6 +1388,8 @@ class GenericPlugin(EmptyPlugin):
             # Update key value file with mapping between filename and patient
             # id, this file is stored in the local MinIO instance
             self.update_filename_pid_mapping(name_of_file_minio, personal_id,
+                                             pseudoMRN,
+                                             input_meta.data_info["MRN"],
                                              s3_local)
 
             # Remove data
@@ -1371,7 +1398,7 @@ class GenericPlugin(EmptyPlugin):
         else:
             name_of_file_minio = None
             os.remove(path_zip_file)
-            raise ValueError("Uploaded file contains files other than .nii and .json files")
+            raise ValueError("ERROR: Uploaded file contains files other than .nii and .json files")
 
         return name_of_file_minio
 
@@ -1418,9 +1445,15 @@ class GenericPlugin(EmptyPlugin):
                         personal_id = self.create_personal_identifier(
                             input_meta.data_info)
 
+                        # Create pseudoMRN
+                        pseudoMRN = self.create_pseudoMRN(
+                            input_meta.data_info['MRN'],
+                            input_meta.data_info['workspace_id'])
+
                         # Upload processed data
                         name_of_file = self.upload_file(
-                            path_to_defaced_structure, personal_id)
+                            path_to_defaced_structure, personal_id, pseudoMRN,
+                            input_meta.data_info['MRN'])
 
                         name_of_anonymized_files.append(name_of_file)
                         if os.path.exists(current_path):
