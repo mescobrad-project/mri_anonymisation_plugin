@@ -1260,10 +1260,8 @@ class GenericPlugin(EmptyPlugin):
 
             personal_id = self.generate_personal_id(personal_data)
         else:
-            # If the data is not provided create an empty string for the
-            # personal ID
-            personal_data = []
-            personal_id = self.generate_personal_id(personal_data)
+            # If the data is not provided set None value for the personal ID
+            personal_id = None
 
         return personal_id
 
