@@ -1042,7 +1042,7 @@ class GenericPlugin(EmptyPlugin):
     def create_pseudoMRN(self, mrn, workspace_id):
         import hashlib
 
-        if mrn is None:
+        if mrn is None or workspace_id is None:
             pseudoMRN = None
         else:
             personalMRN = [mrn, workspace_id]
@@ -1361,8 +1361,16 @@ class GenericPlugin(EmptyPlugin):
 
             name_of_anonymized_files = None
 
-            # File which needs to be processed
-            file_name = input_meta.data_info['filename']
+            pseudoMRN = self.create_pseudoMRN(
+                input_meta.data_info['MRN'],
+                input_meta.data_info['workspace_id'])
+
+            # File to process
+            if pseudoMRN is not None:
+                folder_path, basename_path = os.path.split(input_meta.data_info['filename'])
+                file_name = f"{folder_path}/{pseudoMRN}_{basename_path}"
+            else:
+                file_name = input_meta.data_info['filename']
 
             # Path init
             path_to_zip_file = None
@@ -1387,7 +1395,8 @@ class GenericPlugin(EmptyPlugin):
                 path_to_unzip_file = path_to_data + os.path.basename(file_name).split(".")[0]
 
                 # Download data to process
-                self.download_file(file_name, path_to_zip_file,
+                self.download_file(input_meta.data_info['filename'],
+                                   path_to_zip_file,
                                    path_to_unzip_file)
 
 
@@ -1404,11 +1413,6 @@ class GenericPlugin(EmptyPlugin):
                     # Create personal id
                     personal_id = self.create_personal_identifier(
                         input_meta.data_info)
-
-                    # Create pseudoMRN
-                    pseudoMRN = self.create_pseudoMRN(
-                        input_meta.data_info['MRN'],
-                        input_meta.data_info['workspace_id'])
 
                     # Upload processed data
                     name_of_file = self.upload_file(
